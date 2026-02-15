@@ -29,23 +29,34 @@ adminCampaignsRouter.get(
 adminCampaignsRouter.post(
     '/',
     asyncHandler(async (req, res) => {
-        const body = createCampaignSchema.parse(req.body);
+        try {
+            const body = createCampaignSchema.parse(req.body);
 
-        const exists = await Campaign.findOne({ code: body.code });
-        if (exists) {
-            res.status(409).json({ message: 'Code already exists' });
-            return;
+            const exists = await Campaign.findOne({ code: body.code });
+            if (exists) {
+                res.status(409).json({ message: 'El código ya existe' });
+                return;
+            }
+
+            const campaign = await Campaign.create({
+                code: body.code,
+                destinationUrl: body.destinationUrl,
+                isActive: true
+            });
+
+            logAudit('Campaña creada', 'ADMIN', { code: campaign.code, destinationUrl: campaign.destinationUrl }, { ip: req.ip, userAgent: req.headers['user-agent'] }, req.userId);
+
+            res.json(ok(campaign));
+        } catch (err) {
+            if (err instanceof z.ZodError) {
+                res.status(400).json({
+                    message: 'Datos de campaña inválidos',
+                    errors: err.errors.map(e => ({ path: e.path, message: e.message }))
+                });
+                return;
+            }
+            throw err;
         }
-
-        const campaign = await Campaign.create({
-            code: body.code,
-            destinationUrl: body.destinationUrl,
-            isActive: true
-        });
-
-        logAudit('Campaign created', 'ADMIN', { code: campaign.code, destinationUrl: campaign.destinationUrl }, { ip: req.ip, userAgent: req.headers['user-agent'] }, req.userId);
-
-        res.json(ok(campaign));
     })
 );
 

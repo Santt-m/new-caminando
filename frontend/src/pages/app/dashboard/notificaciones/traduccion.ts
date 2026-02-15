@@ -1,0 +1,40 @@
+import type { ITranslation } from '../../../../hooks/useLanguage';
+
+export const traducciones: ITranslation = {
+    es: {
+        title: 'Notificaciones',
+        subtitle: 'Gestiona tus alertas y avisos del sistema',
+        emptyState: 'No tienes notificaciones',
+        markAllAsRead: 'Marcar todas como leídas',
+        all: 'Todas',
+        unread: 'No leídas',
+        system: 'Sistema',
+        ago: 'hace',
+        today: 'Hoy',
+        yesterday: 'Ayer',
+    },
+    en: {
+        title: 'Notifications',
+        subtitle: 'Manage your system alerts and notifications',
+        emptyState: 'You have no notifications',
+        markAllAsRead: 'Mark all as read',
+        all: 'All',
+        unread: 'Unread',
+        system: 'System',
+        ago: 'ago',
+        today: 'Today',
+        yesterday: 'Yesterday',
+    },
+    pt: {
+        title: 'Notificações',
+        subtitle: 'Gerencie seus alertas e avisos do sistema',
+        emptyState: 'Você não tem notificações',
+        markAllAsRead: 'Marcar todas como lidas',
+        all: 'Todas',
+        unread: 'Não lidas',
+        system: 'Sistema',
+        ago: 'atrás',
+        today: 'Hoje',
+        yesterday: 'Ontem',
+    },
+};

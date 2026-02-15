@@ -1,0 +1,91 @@
+@theme {
+  /* Colors */
+  --color-background: hsl(var(--t-colors-background));
+  --color-foreground: hsl(var(--t-colors-foreground));
+
+  --color-card: hsl(var(--t-colors-card));
+  --color-card-foreground: hsl(var(--t-colors-card-foreground));
+
+  --color-popover: hsl(var(--t-colors-popover));
+  --color-popover-foreground: hsl(var(--t-colors-popover-foreground));
+
+  --color-primary: hsl(var(--t-colors-primary));
+  --color-primary-foreground: hsl(var(--t-colors-primary-foreground));
+
+  --color-secondary: hsl(var(--t-colors-secondary));
+  --color-secondary-foreground: hsl(var(--t-colors-secondary-foreground));
+
+  --color-muted: hsl(var(--t-colors-muted));
+  --color-muted-foreground: hsl(var(--t-colors-muted-foreground));
+
+  --color-accent: hsl(var(--t-colors-accent));
+  --color-accent-foreground: hsl(var(--t-colors-accent-foreground));
+
+  --color-destructive: hsl(var(--t-colors-destructive));
+  --color-destructive-foreground: hsl(var(--t-colors-destructive-foreground));
+
+  --color-success: hsl(var(--t-colors-success));
+  --color-success-foreground: hsl(var(--t-colors-success-foreground));
+
+  --color-warning: hsl(var(--t-colors-warning));
+  --color-warning-foreground: hsl(var(--t-colors-warning-foreground));
+
+  --color-info: hsl(var(--t-colors-info));
+  --color-info-foreground: hsl(var(--t-colors-info-foreground));
+
+  --color-indigo: hsl(var(--t-colors-indigo));
+  --color-indigo-foreground: hsl(var(--t-colors-indigo-foreground));
+
+  --color-border: hsl(var(--t-colors-border));
+  --color-input: hsl(var(--t-colors-input));
+  --color-ring: hsl(var(--t-colors-ring));
+
+  /* Typography */
+  --font-sans: var(--t-typography-fonts-sans);
+  --font-mono: var(--t-typography-fonts-mono);
+  --font-heading: var(--t-typography-fonts-heading);
+
+  --text-xs: var(--t-typography-sizes-xs);
+  --text-sm: var(--t-typography-sizes-sm);
+  --text-base: var(--t-typography-sizes-base);
+  --text-lg: var(--t-typography-sizes-lg);
+  --text-xl: var(--t-typography-sizes-xl);
+  --text-2xl: var(--t-typography-sizes-2xl);
+  --text-3xl: var(--t-typography-sizes-3xl);
+  --text-4xl: var(--t-typography-sizes-4xl);
+  --text-5xl: var(--t-typography-sizes-5xl);
+  --text-6xl: var(--t-typography-sizes-6xl);
+
+  --font-weight-light: var(--t-typography-weights-light);
+  --font-weight-normal: var(--t-typography-weights-normal);
+  --font-weight-medium: var(--t-typography-weights-medium);
+  --font-weight-semibold: var(--t-typography-weights-semibold);
+  --font-weight-bold: var(--t-typography-weights-bold);
+  --font-weight-extrabold: var(--t-typography-weights-extrabold);
+
+  /* Spacing */
+  --spacing-0: var(--t-spacing-0);
+  --spacing-1: var(--t-spacing-1);
+  --spacing-2: var(--t-spacing-2);
+  --spacing-3: var(--t-spacing-3);
+  --spacing-4: var(--t-spacing-4);
+  --spacing-5: var(--t-spacing-5);
+  --spacing-6: var(--t-spacing-6);
+  --spacing-8: var(--t-spacing-8);
+  --spacing-10: var(--t-spacing-10);
+  --spacing-12: var(--t-spacing-12);
+  --spacing-16: var(--t-spacing-16);
+  --spacing-20: var(--t-spacing-20);
+  --spacing-24: var(--t-spacing-24);
+  --spacing-32: var(--t-spacing-32);
+
+  /* Radius */
+  --radius-lg: var(--t-radius-lg);
+  --radius-md: var(--t-radius-md);
+  --radius-sm: var(--t-radius-sm);
+
+  /* Shadows */
+  --shadow-sm: var(--t-shadows-sm);
+  --shadow-md: var(--t-shadows-md);
+  --shadow-lg: var(--t-shadows-lg);
+}

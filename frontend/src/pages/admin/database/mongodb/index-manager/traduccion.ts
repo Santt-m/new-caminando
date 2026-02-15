@@ -1,0 +1,87 @@
+export interface ITranslation {
+    es: Record<string, string>;
+    en: Record<string, string>;
+    pt: Record<string, string>;
+    [key: string]: Record<string, string>;
+}
+
+export const traducciones: ITranslation = {
+    es: {
+        title: "Índices",
+        subtitle: "Gestión de índices",
+        buttonCreateIndex: "Crear Índice",
+        buttonBack: "Volver",
+        formTitle: "Crear Nuevo Índice",
+        formFieldName: "Nombre del Campo",
+        formFieldPlaceholder: "ej: email",
+        formFieldOrder: "Orden",
+        formOrderAsc: "Ascendente (1)",
+        formOrderDesc: "Descendente (-1)",
+        formUnique: "Único",
+        buttonCreate: "Crear",
+        buttonCancel: "Cancelar",
+        tableTitle: "Índices Existentes",
+        tableHeaderName: "Nombre",
+        tableHeaderKeys: "Claves",
+        tableHeaderType: "Tipo",
+        buttonDelete: "Eliminar",
+        confirmDelete: "¿Eliminar índice",
+        errorProtected: "No se puede eliminar el índice _id",
+        loading: "Cargando...",
+        noIndexes: "No hay índices",
+        successCreated: "Índice creado exitosamente",
+        badgeUnique: "Único"
+    },
+    en: {
+        title: "Indexes",
+        subtitle: "Index management",
+        buttonCreateIndex: "Create Index",
+        buttonBack: "Back",
+        formTitle: "Create New Index",
+        formFieldName: "Field Name",
+        formFieldPlaceholder: "e.g., email",
+        formFieldOrder: "Order",
+        formOrderAsc: "Ascending (1)",
+        formOrderDesc: "Descending (-1)",
+        formUnique: "Unique",
+        buttonCreate: "Create",
+        buttonCancel: "Cancel",
+        tableTitle: "Existing Indexes",
+        tableHeaderName: "Name",
+        tableHeaderKeys: "Keys",
+        tableHeaderType: "Type",
+        buttonDelete: "Delete",
+        confirmDelete: "Delete index",
+        errorProtected: "Cannot delete _id index",
+        loading: "Loading...",
+        noIndexes: "No indexes",
+        successCreated: "Index created successfully",
+        badgeUnique: "Unique"
+    },
+    pt: {
+        title: "Índices",
+        subtitle: "Gerenciamento de índices",
+        buttonCreateIndex: "Criar Índice",
+        buttonBack: "Voltar",
+        formTitle: "Criar Novo Índice",
+        formFieldName: "Nome do Campo",
+        formFieldPlaceholder: "ex: email",
+        formFieldOrder: "Ordem",
+        formOrderAsc: "Ascendente (1)",
+        formOrderDesc: "Descendente (-1)",
+        formUnique: "Único",
+        buttonCreate: "Criar",
+        buttonCancel: "Cancelar",
+        tableTitle: "Índices Existentes",
+        tableHeaderName: "Nome",
+        tableHeaderKeys: "Chaves",
+        tableHeaderType: "Tipo",
+        buttonDelete: "Excluir",
+        confirmDelete: "Excluir índice",
+        errorProtected: "Não é possível excluir o índice _id",
+        loading: "Carregando...",
+        noIndexes: "Sem índices",
+        successCreated: "Índice criado com sucesso",
+        badgeUnique: "Único"
+    }
+};

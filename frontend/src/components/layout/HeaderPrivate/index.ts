@@ -1,0 +1,1 @@
+export { HeaderPrivate } from './HeaderPrivate';

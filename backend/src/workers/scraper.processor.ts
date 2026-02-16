@@ -19,28 +19,46 @@ export const processScraperJob = async (job: Job) => {
     const context = await browserFactory.createContext();
 
     try {
+
         // En un futuro aquí importaremos dinámicamente el módulo por tienda
         // Por ahora simulamos el procesamiento según la acción
-        switch (job.name) {
-            case 'CRAWL_CATEGORY':
-                logger.info(`[${store}] Descubriendo subcategorías...`, { module: 'PROCESSOR' });
-                // Aquí iría la lógica de category.processor
-                await new Promise(resolve => setTimeout(resolve, 5000));
-                break;
 
-            case 'SCRAPE_PRODUCT':
-                logger.info(`[${store}] Scrapeando producto...`, { module: 'PROCESSOR' });
-                // Aquí iría la lógica de product.processor
-                await new Promise(resolve => setTimeout(resolve, 3000));
-                break;
+        // Factory simple para instanciar el nodo correcto
+        let scraperNode;
+        const jobType = job.name;
 
-            default:
-                if (job.name.startsWith('DISCOVER_')) {
-                    logger.info(`[${store}] Iniciando descubrimiento inicial...`, { module: 'PROCESSOR' });
-                    await new Promise(resolve => setTimeout(resolve, 8000));
-                } else {
-                    logger.warn(`Nombre de trabajo desconocido: ${job.name}`, { module: 'PROCESSOR' });
+        switch (jobType) {
+            case 'DISCOVER_CARREFOUR': // Or similar action name mapped
+                if (store === 'carrefour') {
+                    const { CarrefourHomeScraper } = await import('../scrapers/carrefour/CarrefourHomeScraper.js');
+                    scraperNode = new CarrefourHomeScraper();
                 }
+                break;
+            case 'CRAWL_CATEGORY':
+                if (store === 'carrefour') {
+                    const { CarrefourSubcategoryScraper } = await import('../scrapers/carrefour/CarrefourSubcategoryScraper.js');
+                    scraperNode = new CarrefourSubcategoryScraper();
+                }
+                break;
+            case 'DISCOVER_BRANDS':
+                if (store === 'carrefour') {
+                    const { CarrefourBrandScraper } = await import('../scrapers/carrefour/CarrefourBrandScraper.js');
+                    scraperNode = new CarrefourBrandScraper();
+                }
+                break;
+            case 'SCRAPE_PRODUCT':
+                if (store === 'carrefour') {
+                    const { CarrefourProductScraper } = await import('../scrapers/carrefour/CarrefourProductScraper.js');
+                    scraperNode = new CarrefourProductScraper();
+                }
+                break;
+        }
+
+        if (scraperNode && scraperNode.canHandle(job.data)) {
+            logger.info(`[PROCESSOR] Ejecutando nodo ${scraperNode.name}`, { module: 'PROCESSOR' });
+            await scraperNode.execute(job.data);
+        } else {
+            logger.warn(`No se encontró nodo para ${job.name} en ${store}`, { module: 'PROCESSOR' });
         }
     } finally {
         // MUY IMPORTANTE: Cerrar el contexto para liberar el navegador al pool

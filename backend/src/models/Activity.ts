@@ -35,7 +35,7 @@ const ActivitySchema = new Schema<ActivityDocument>(
     visitorState: { type: String, enum: ['ok', 'blocked', 'suspicious'], default: 'ok', index: true },
     eventType: { type: String, enum: ['REQUEST', 'THREAT', 'LOGIN', 'SYSTEM', 'AUDIT', 'SCRAPING'], default: 'REQUEST', index: true },
     level: { type: String, enum: ['debug', 'info', 'warn', 'error', 'audit'], default: 'info', index: true },
-    module: { type: String, enum: ['AUTH', 'DATABASE', 'ADMIN', 'SUPPORT', 'SYSTEM', 'NETWORK', 'WORKER', 'PROCESSOR', 'BROWSER', 'SCRAPER'], required: true, index: true },
+    module: { type: String, enum: ['AUTH', 'DATABASE', 'ADMIN', 'SUPPORT', 'SYSTEM', 'NETWORK', 'WORKER', 'PROCESSOR', 'BROWSER', 'SCRAPER', 'SCRAPER_NODE'], required: true, index: true },
     message: { type: String, required: true },
     details: { type: Schema.Types.Mixed },
     ipInfo: { type: Schema.Types.Mixed },

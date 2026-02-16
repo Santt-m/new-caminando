@@ -7,15 +7,17 @@ import {
     TableRow
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import type { ScraperJob } from '@/services/admin/scraper.service';
-import { Clock, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { Clock, CheckCircle2, AlertCircle, Loader2, X } from 'lucide-react';
 
 interface ScraperQueueProps {
     jobs: ScraperJob[];
     isLoading: boolean;
+    onCancelJob?: (jobId: string) => void;
 }
 
-export const ScraperQueue = ({ jobs, isLoading }: ScraperQueueProps) => {
+export const ScraperQueue = ({ jobs, isLoading, onCancelJob }: ScraperQueueProps) => {
     const getStatusIcon = (status: ScraperJob['status']) => {
         switch (status) {
             case 'active': return <Loader2 className="h-4 w-4 animate-spin text-primary" />;
@@ -54,26 +56,27 @@ export const ScraperQueue = ({ jobs, isLoading }: ScraperQueueProps) => {
                         <TableHead>Objetivo</TableHead>
                         <TableHead>Estado</TableHead>
                         <TableHead>Intentos</TableHead>
-                        <TableHead className="text-right">Iniciado</TableHead>
+                        <TableHead>Iniciado</TableHead>
+                        <TableHead className="text-right w-[80px]">Acción</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {jobs.length === 0 ? (
                         <TableRow>
-                            <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                            <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
                                 No hay trabajos en cola actualmente.
                             </TableCell>
                         </TableRow>
                     ) : (
                         jobs.map((job) => (
-                            <TableRow key={job.id}>
-                                <TableCell className="font-mono text-xs text-muted-foreground">
+                            <TableRow key={job.id} className="hover:bg-muted/20 transition-colors">
+                                <TableCell className="font-mono text-[10px] text-muted-foreground">
                                     #{job.id.substring(0, 8)}
                                 </TableCell>
-                                <TableCell className="font-medium capitalize">
+                                <TableCell className="font-medium capitalize text-sm">
                                     {job.type.replace('-', ' ')}
                                 </TableCell>
-                                <TableCell>{job.target}</TableCell>
+                                <TableCell className="text-sm">{job.target}</TableCell>
                                 <TableCell>
                                     <div className="flex items-center gap-2">
                                         {getStatusIcon(job.status)}
@@ -82,9 +85,22 @@ export const ScraperQueue = ({ jobs, isLoading }: ScraperQueueProps) => {
                                         </Badge>
                                     </div>
                                 </TableCell>
-                                <TableCell>{job.attempts}</TableCell>
-                                <TableCell className="text-right text-muted-foreground text-xs">
+                                <TableCell className="text-center">{job.attempts}</TableCell>
+                                <TableCell className="text-muted-foreground text-[11px]">
                                     {new Date(job.timestamp).toLocaleTimeString()}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                    {onCancelJob && job.status !== 'completed' && job.status !== 'failed' && (
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                            onClick={() => onCancelJob(job.id)}
+                                            title="Cancelar trabajo"
+                                        >
+                                            <X className="h-3 w-3" />
+                                        </Button>
+                                    )}
                                 </TableCell>
                             </TableRow>
                         ))

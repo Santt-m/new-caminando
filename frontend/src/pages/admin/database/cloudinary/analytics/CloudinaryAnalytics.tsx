@@ -20,7 +20,7 @@ import {
     BarChart3,
     Clock
 } from 'lucide-react';
-import { API_BASE_URL } from '@/utils/api.config';
+import { cloudinaryService } from '@/services/adminMediaService';
 
 interface AnalyticsData {
     totalStats: {
@@ -59,7 +59,6 @@ export default function CloudinaryAnalytics() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const API_URL = API_BASE_URL;
     const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
 
     const loadAnalytics = useCallback(async () => {
@@ -67,27 +66,15 @@ export default function CloudinaryAnalytics() {
             setLoading(true);
             setError(null);
 
-            const token = localStorage.getItem('adminToken');
-            const headers = {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-            };
-
-            const response = await fetch(`${API_URL}/panel/cloudinary/metrics/analytics`, { headers });
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.message || 'Error al cargar analytics');
-            }
-
-            setAnalytics(data.data);
+            const data = await cloudinaryService.getAnalytics();
+            setAnalytics(data);
         } catch (err) {
             console.error('Error loading analytics:', err);
             setError(err instanceof Error ? err.message : 'Error al cargar las métricas');
         } finally {
             setLoading(false);
         }
-    }, [API_URL]);
+    }, []);
 
     useEffect(() => {
         loadAnalytics();
@@ -145,7 +132,6 @@ export default function CloudinaryAnalytics() {
 
     return (
         <div className="space-y-6">
-            {/* Header con Breadcrumbs */}
             <div className="space-y-4">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Link to="/panel" className="hover:text-foreground transition-colors">
@@ -185,7 +171,6 @@ export default function CloudinaryAnalytics() {
                 </div>
             </div>
 
-            {/* Overall Stats */}
             {analytics && (
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                     <Card>
@@ -244,9 +229,7 @@ export default function CloudinaryAnalytics() {
                 </div>
             )}
 
-            {/* Top Images */}
             <div className="grid gap-4 md:grid-cols-2">
-                {/* Top by Size */}
                 <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
@@ -291,7 +274,6 @@ export default function CloudinaryAnalytics() {
                     </CardContent>
                 </Card>
 
-                {/* Recent Uploads */}
                 <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
@@ -336,7 +318,6 @@ export default function CloudinaryAnalytics() {
                 </Card>
             </div>
 
-            {/* Folder Stats */}
             {analytics && analytics.folderStats.length > 0 && (
                 <Card>
                     <CardHeader>
@@ -366,7 +347,6 @@ export default function CloudinaryAnalytics() {
                 </Card>
             )}
 
-            {/* Formato Distribution */}
             {analytics && Object.keys(analytics.totalStats.formats).length > 0 && (
                 <Card>
                     <CardHeader>

@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { API_BASE_URL } from '@/utils/api.config';
 import {
   Image as ImageIcon,
   Trash2,
@@ -23,6 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { cloudinaryService } from '@/services/adminMediaService';
 
 interface CloudinaryImage {
   public_id: string;
@@ -51,31 +51,12 @@ export const ImageGallery = () => {
   const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set());
   const [previewImage, setPreviewImage] = useState<CloudinaryImage | null>(null);
 
-  const API_URL = API_BASE_URL;
-
   const loadImages = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('adminToken');
-
-      const params = new URLSearchParams();
-      if (selectedFolder !== 'all') {
-        params.append('folder', selectedFolder);
-      }
-      params.append('maxResults', '100');
-
-      const response = await fetch(`${API_URL}/panel/cloudinary/images?${params}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) throw new Error('Error al cargar imágenes');
-
-      const data = await response.json();
-      setImages(data.data.resources || []);
-      setFilteredImages(data.data.resources || []);
+      const data = await cloudinaryService.listImages(selectedFolder !== 'all' ? selectedFolder : undefined, 100);
+      setImages(data || []);
+      setFilteredImages(data || []);
     } catch (err) {
       console.error('Error loading images:', err);
     } finally {
@@ -119,19 +100,7 @@ export const ImageGallery = () => {
     if (!confirm('¿Estás seguro de que deseas eliminar esta imagen?')) return;
 
     try {
-      const token = localStorage.getItem('adminToken');
-      const encodedId = encodeURIComponent(publicId);
-
-      const response = await fetch(`${API_URL}/panel/cloudinary/images/${encodedId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) throw new Error('Error al eliminar imagen');
-
+      await cloudinaryService.deleteImage(publicId);
       await loadImages();
     } catch (err) {
       console.error('Error deleting image:', err);
@@ -144,20 +113,8 @@ export const ImageGallery = () => {
 
     if (!confirm(`¿Eliminar ${selectedImages.size} imagen(es) seleccionada(s)?`)) return;
 
-    const deletePromises = Array.from(selectedImages).map(publicId => {
-      const token = localStorage.getItem('adminToken');
-      const encodedId = encodeURIComponent(publicId);
-      return fetch(`${API_URL}/panel/cloudinary/images/${encodedId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-    });
-
     try {
-      await Promise.all(deletePromises);
+      await Promise.all(Array.from(selectedImages).map(publicId => cloudinaryService.deleteImage(publicId)));
       setSelectedImages(new Set());
       await loadImages();
     } catch (err) {
@@ -197,7 +154,6 @@ export const ImageGallery = () => {
 
   return (
     <div className="space-y-6">
-      {/* Breadcrumb Navigation */}
       <div className="flex items-center space-x-2 text-sm text-muted-foreground">
         <Button
           variant="ghost"
@@ -224,7 +180,6 @@ export const ImageGallery = () => {
         </span>
       </div>
 
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Galería de Imágenes</h1>
@@ -243,11 +198,9 @@ export const ImageGallery = () => {
         </div>
       </div>
 
-      {/* Filters and Actions */}
       <Card>
         <CardContent className="pt-6">
           <div className="flex flex-col md:flex-row gap-4">
-            {/* Search */}
             <div className="flex-1">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -260,7 +213,6 @@ export const ImageGallery = () => {
               </div>
             </div>
 
-            {/* Folder Filter */}
             <div className="flex items-center space-x-2 border rounded-md px-3 py-2 w-48">
               <FolderOpen className="h-4 w-4 text-muted-foreground" />
               <select
@@ -275,7 +227,6 @@ export const ImageGallery = () => {
               </select>
             </div>
 
-            {/* View Mode */}
             <div className="flex items-center space-x-1 border rounded-md">
               <Button
                 variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
@@ -294,7 +245,6 @@ export const ImageGallery = () => {
             </div>
           </div>
 
-          {/* Bulk Actions */}
           {selectedImages.size > 0 && (
             <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md flex items-center justify-between">
               <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
@@ -320,7 +270,6 @@ export const ImageGallery = () => {
             </div>
           )}
 
-          {/* Select All */}
           <div className="mt-4 flex items-center space-x-2">
             <Button
               variant="ghost"
@@ -338,7 +287,6 @@ export const ImageGallery = () => {
         </CardContent>
       </Card>
 
-      {/* Images Grid/List */}
       {filteredImages.length === 0 ? (
         <Card>
           <CardContent className="py-12">
@@ -363,7 +311,6 @@ export const ImageGallery = () => {
                 }`}
             >
               <CardContent className="p-0">
-                {/* Image */}
                 <div className="relative aspect-square">
                   <img
                     src={image.secure_url}
@@ -371,7 +318,6 @@ export const ImageGallery = () => {
                     className="w-full h-full object-cover rounded-t-lg"
                   />
 
-                  {/* Overlay on hover */}
                   <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-t-lg flex items-center justify-center space-x-2">
                     <Button
                       size="sm"
@@ -396,7 +342,6 @@ export const ImageGallery = () => {
                     </Button>
                   </div>
 
-                  {/* Selection checkbox */}
                   <div
                     className="absolute top-2 left-2 z-10"
                     onClick={(e) => {
@@ -412,7 +357,6 @@ export const ImageGallery = () => {
                   </div>
                 </div>
 
-                {/* Info */}
                 <div className="p-3 space-y-1">
                   <p className="text-xs font-medium truncate">{image.public_id.split('/').pop()}</p>
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -437,7 +381,6 @@ export const ImageGallery = () => {
                   className={`p-4 hover:bg-accent transition-colors flex items-center space-x-4 ${selectedImages.has(image.public_id) ? 'bg-accent' : ''
                     }`}
                 >
-                  {/* Checkbox */}
                   <div
                     onClick={() => toggleImageSelection(image.public_id)}
                     className="cursor-pointer"
@@ -449,14 +392,12 @@ export const ImageGallery = () => {
                     )}
                   </div>
 
-                  {/* Thumbnail */}
                   <img
                     src={image.secure_url}
                     alt={image.public_id}
                     className="w-16 h-16 object-cover rounded"
                   />
 
-                  {/* Info */}
                   <div className="flex-1 min-w-0">
                     <p className="font-medium truncate">{image.public_id}</p>
                     <div className="flex items-center space-x-4 text-sm text-muted-foreground mt-1">
@@ -475,7 +416,6 @@ export const ImageGallery = () => {
                     </div>
                   </div>
 
-                  {/* Actions */}
                   <div className="flex items-center space-x-2">
                     <Button
                       size="sm"
@@ -506,7 +446,6 @@ export const ImageGallery = () => {
         </Card>
       )}
 
-      {/* Preview Modal */}
       <Dialog
         open={!!previewImage}
         onOpenChange={(open) => !open && setPreviewImage(null)}

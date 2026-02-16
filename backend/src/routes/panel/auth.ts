@@ -7,6 +7,7 @@ import { Session } from '../../models/Session.js';
 import { env } from '../../config/env.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { success, error } from '../../utils/response.js';
+import { requireAdmin } from '../../middlewares/auth.js';
 
 const ADMIN_REFRESH_COOKIE = 'adminRefresh';
 const ADMIN_ACCESS_COOKIE = 'adminAccess';
@@ -26,9 +27,6 @@ const clearAdminCookies = (res: Response) => {
 };
 
 const setAdminCookies = (res: Response, access: string, refresh: string) => {
-  // Primero limpiar cualquier cookie vieja
-  clearAdminCookies(res);
-
   const cookieOptions = {
     httpOnly: true,
     sameSite: (env.nodeEnv === 'production' ? 'none' : 'lax') as 'none' | 'lax', // Must be 'none' for cross-site (Vercel -> Railway)
@@ -104,25 +102,14 @@ adminAuthRouter.post(
 
 adminAuthRouter.get(
   '/me',
+  requireAdmin,
   asyncHandler(async (req, res) => {
-    const token = req.cookies?.adminAccess;
-    if (!token) {
-      return error(res, 'Unauthorized', 401);
+    const admin = await User.findById(req.userId);
+    if (!admin) {
+      return error(res, 'Admin not found', 404);
     }
 
-    try {
-      const payload = jwt.verify(token, env.jwtSecret) as { sub: string };
-      const admin = await User.findById(payload.sub);
-      if (!admin) {
-        return error(res, 'Admin not found', 404);
-      }
-
-      return success(res, { id: admin._id, email: admin.email, name: admin.name, role: admin.role, permissions: ['*'] });
-    } catch {
-      // Token expirado o inválido - limpiar cookies
-      clearAdminCookies(res);
-      return error(res, 'Unauthorized', 401);
-    }
+    return success(res, { id: admin._id, email: admin.email, name: admin.name, role: admin.role, permissions: ['*'] });
   })
 );
 

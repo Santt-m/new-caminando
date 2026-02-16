@@ -38,4 +38,6 @@ export const env = {
   smtpUser: process.env.SMTP_USER || '',
   smtpPass: process.env.SMTP_PASS || '',
   smtpFrom: process.env.SMTP_FROM || '',
+  // Scraper
+  headless: process.env.HEADLESS !== 'false', // Default to true unless explicitly set to 'false'
 };

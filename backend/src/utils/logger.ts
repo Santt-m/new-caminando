@@ -33,25 +33,13 @@ const format = winston.format.combine(
 
 
 // Custom Transport for MongoDB (Activity Model)
-interface LogInfo {
-    level: string;
-    message: string;
-    module?: string;
-    details?: unknown;
-    context?: LogContext;
-    userId?: string;
-    requestId?: string;
-    duration?: number;
-    eventType?: string;
-}
-
 class DatabaseTransport extends Transport {
     name = 'DatabaseTransport';
     override level?: string;
     override silent?: boolean;
     override handleExceptions?: boolean;
     override handleRejections?: boolean;
-    
+
     constructor(opts?: TransportStreamOptions) {
         super(opts);
         this.level = opts?.level;
@@ -60,10 +48,10 @@ class DatabaseTransport extends Transport {
         this.handleRejections = opts?.handleRejections;
     }
 
-    override log(info: LogInfo, callback: () => void) {
+    override log(info: any, callback: () => void) {
         setImmediate(async () => {
             try {
-                const { level, message, module, details, context, userId, requestId, duration, eventType } = info;
+                const { level, message, module, details, context, userId, requestId, duration, eventType, ...rest } = info;
 
                 // Strip colors and extract level
                 // eslint-disable-next-line no-control-regex
@@ -73,7 +61,6 @@ class DatabaseTransport extends Transport {
 
                 // Skip debug logs for DB
                 if (cleanLevel === 'debug') {
-                    if (callback) callback();
                     return;
                 }
 
@@ -84,11 +71,17 @@ class DatabaseTransport extends Transport {
                     ipInfo = await getIpInfo(ip);
                 }
 
+                // Combinar details con el resto de la metadata no destructurada
+                const finalDetails = {
+                    ...(typeof details === 'object' ? details : {}),
+                    ...rest
+                };
+
                 await Activity.create({
-                    level: cleanLevel as 'error' | 'warn' | 'info' | 'http' | 'verbose' | 'debug' | 'silly',
+                    level: cleanLevel as 'error' | 'warn' | 'info' | 'audit',
                     module: module || 'SYSTEM',
                     message,
-                    details,
+                    details: Object.keys(finalDetails).length > 0 ? finalDetails : undefined,
                     userId,
                     requestId,
                     duration,

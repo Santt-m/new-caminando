@@ -25,6 +25,22 @@ const adminApi = axios.create({
     withCredentials: true, // IMPORTANTE: Enviar cookies
 });
 
+// Variables para manejar el refresco de token sincronizado
+let isRefreshing = false;
+let failedQueue: { resolve: (value: unknown) => void; reject: (reason?: any) => void }[] = [];
+
+const processQueue = (error: any, token: string | null = null) => {
+    failedQueue.forEach(prom => {
+        if (error) {
+            prom.reject(error);
+        } else {
+            prom.resolve(token);
+        }
+    });
+
+    failedQueue = [];
+};
+
 // Interceptor para manejar 401 mediante refresco automático
 adminApi.interceptors.response.use(
     (response) => response,
@@ -37,14 +53,31 @@ adminApi.interceptors.response.use(
         }
 
         if (error.response?.status === 401 && !originalRequest._retry) {
+            if (isRefreshing) {
+                return new Promise(function (resolve, reject) {
+                    failedQueue.push({ resolve, reject });
+                }).then(() => {
+                    // Marcar como reintento antes de volver a intentar
+                    originalRequest._retry = true;
+                    // Delay para asegurar que las cookies se procesen
+                    return new Promise(resolve => setTimeout(resolve, 150)).then(() => adminApi(originalRequest));
+                }).catch(err => {
+                    return Promise.reject(err);
+                });
+            }
+
             originalRequest._retry = true;
+            isRefreshing = true;
 
             try {
                 await AdminAuthService.refresh();
+                processQueue(null);
 
-                // Reintentar la petición original
+                // Esperar a que las cookies se asienten y reintentar
+                await new Promise(resolve => setTimeout(resolve, 200));
                 return adminApi(originalRequest);
             } catch (refreshError) {
+                processQueue(refreshError, null);
                 localStorage.removeItem('admin_user');
 
                 const isAlreadyInLogin = window.location.pathname === '/panel/login';
@@ -52,6 +85,8 @@ adminApi.interceptors.response.use(
                     window.location.href = '/panel/login';
                 }
                 return Promise.reject(refreshError);
+            } finally {
+                isRefreshing = false;
             }
         }
         return Promise.reject(error);

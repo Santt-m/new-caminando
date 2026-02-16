@@ -10,11 +10,11 @@ import {
   ArrowLeft,
   Home
 } from 'lucide-react';
-import { API_BASE_URL } from '@/utils/api.config';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
+import { cloudinaryService } from '@/services/adminMediaService';
 
 interface UploadFile {
   file: File;
@@ -40,8 +40,6 @@ export const ImageUploader = () => {
   const [uploadFiles, setUploadFiles] = useState<UploadFile[]>([]);
   const [selectedFolder, setSelectedFolder] = useState('products');
   const [isDragging, setIsDragging] = useState(false);
-
-  const API_URL = API_BASE_URL;
 
   const validateFile = (file: File): string | null => {
     if (!ACCEPTED_FORMATS.includes(file.type)) {
@@ -100,10 +98,6 @@ export const ImageUploader = () => {
   };
 
   const uploadFile = async (file: UploadFile, index: number) => {
-    const formData = new FormData();
-    formData.append('image', file.file);
-    formData.append('folder', selectedFolder);
-
     try {
       // Update status to uploading
       setUploadFiles(prev => {
@@ -112,13 +106,9 @@ export const ImageUploader = () => {
         return newFiles;
       });
 
-      const token = localStorage.getItem('adminToken');
-
-      const xhr = new XMLHttpRequest();
-
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable) {
-          const progress = (e.loaded / e.total) * 100;
+      const result = await cloudinaryService.uploadImage(file.file, selectedFolder, (progressEvent) => {
+        if (progressEvent.total) {
+          const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
           setUploadFiles(prev => {
             const newFiles = [...prev];
             newFiles[index] = { ...newFiles[index], progress };
@@ -127,47 +117,22 @@ export const ImageUploader = () => {
         }
       });
 
-      xhr.addEventListener('load', () => {
-        if (xhr.status === 200 || xhr.status === 201) {
-          const response = JSON.parse(xhr.responseText);
-          setUploadFiles(prev => {
-            const newFiles = [...prev];
-            newFiles[index] = {
-              ...newFiles[index],
-              status: 'success',
-              progress: 100,
-              result: response.data
-            };
-            return newFiles;
-          });
-        } else {
-          setUploadFiles(prev => {
-            const newFiles = [...prev];
-            newFiles[index] = {
-              ...newFiles[index],
-              status: 'error',
-              error: 'Error al subir la imagen'
-            };
-            return newFiles;
-          });
-        }
+      setUploadFiles(prev => {
+        const newFiles = [...prev];
+        newFiles[index] = {
+          ...newFiles[index],
+          status: 'success',
+          progress: 100,
+          result: {
+            url: result.url,
+            publicId: result.public_id,
+            format: result.format,
+            width: result.width,
+            height: result.height
+          }
+        };
+        return newFiles;
       });
-
-      xhr.addEventListener('error', () => {
-        setUploadFiles(prev => {
-          const newFiles = [...prev];
-          newFiles[index] = {
-            ...newFiles[index],
-            status: 'error',
-            error: 'Error de red'
-          };
-          return newFiles;
-        });
-      });
-
-      xhr.open('POST', `${API_URL}/panel/cloudinary/upload`);
-      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-      xhr.send(formData);
 
     } catch (err) {
       setUploadFiles(prev => {
@@ -175,7 +140,7 @@ export const ImageUploader = () => {
         newFiles[index] = {
           ...newFiles[index],
           status: 'error',
-          error: err instanceof Error ? err.message : 'Error desconocido'
+          error: err instanceof Error ? err.message : 'Error al subir la imagen'
         };
         return newFiles;
       });
@@ -224,7 +189,6 @@ export const ImageUploader = () => {
 
   return (
     <div className="space-y-6">
-      {/* Breadcrumb Navigation */}
       <div className="flex items-center space-x-2 text-sm text-muted-foreground">
         <Button
           variant="ghost"
@@ -249,7 +213,6 @@ export const ImageUploader = () => {
         <span className="font-medium text-foreground">Subir Imágenes</span>
       </div>
 
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Subir Imágenes</h1>
@@ -259,7 +222,6 @@ export const ImageUploader = () => {
         </div>
       </div>
 
-      {/* Settings */}
       <Card>
         <CardHeader>
           <CardTitle>Configuración</CardTitle>
@@ -286,7 +248,6 @@ export const ImageUploader = () => {
         </CardContent>
       </Card>
 
-      {/* Upload Zone */}
       <Card>
         <CardContent className="pt-6">
           <div
@@ -324,7 +285,6 @@ export const ImageUploader = () => {
         </CardContent>
       </Card>
 
-      {/* Stats */}
       {uploadFiles.length > 0 && (
         <div className="grid gap-4 md:grid-cols-5">
           <Card>
@@ -360,7 +320,6 @@ export const ImageUploader = () => {
         </div>
       )}
 
-      {/* Actions */}
       {uploadFiles.length > 0 && (
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
@@ -392,7 +351,6 @@ export const ImageUploader = () => {
         </div>
       )}
 
-      {/* Files List */}
       {uploadFiles.length > 0 && (
         <Card>
           <CardHeader>
@@ -406,14 +364,12 @@ export const ImageUploader = () => {
                   key={index}
                   className="flex items-center space-x-4 p-4 border rounded-lg"
                 >
-                  {/* Preview */}
                   <img
                     src={uploadFile.preview}
                     alt={uploadFile.file.name}
                     className="w-16 h-16 object-cover rounded"
                   />
 
-                  {/* Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center space-x-2 mb-1">
                       <p className="font-medium truncate">{uploadFile.file.name}</p>
@@ -450,7 +406,6 @@ export const ImageUploader = () => {
                     )}
                   </div>
 
-                  {/* Actions */}
                   <div className="flex items-center space-x-2">
                     {uploadFile.status === 'success' && uploadFile.result && (
                       <Button
@@ -487,7 +442,6 @@ export const ImageUploader = () => {
         </Card>
       )}
 
-      {/* Success Action */}
       {stats.success > 0 && stats.pending === 0 && stats.uploading === 0 && (
         <Card className="bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800">
           <CardContent className="pt-6">

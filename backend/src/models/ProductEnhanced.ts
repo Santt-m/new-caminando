@@ -110,36 +110,36 @@ export interface ProductDocument extends Document {
     brand?: mongoose.Types.ObjectId;
     category: mongoose.Types.ObjectId;
     subcategories?: mongoose.Types.ObjectId[];
-    
+
     // Identificadores únicos
     publicId?: string;
     sku?: string;
     ean?: string; // EAN principal
-    
+
     // Descripción e imágenes
     description?: string | TranslatedField;
     shortDescription?: string | TranslatedField;
     images?: string[];
     imageUrl?: string;
     thumbnailUrl?: string;
-    
+
     // Categorización
     tags?: string[];
     keywords?: string[];
-    
+
     // Precios y disponibilidad
     price: number; // Precio base
     currency: 'ARS' | 'USD' | 'PEN';
     available: boolean;
     stock?: number;
-    
+
     // Variantes con EAN único
     variants: ProductVariant[];
     defaultVariantId?: mongoose.Types.ObjectId;
-    
+
     // Opciones configurables
     options?: ProductOption[];
-    
+
     // Información física
     unit?: string;
     weight?: number; // en gramos
@@ -149,20 +149,20 @@ export interface ProductDocument extends Document {
         height: number;
     };
     shippingCost: number;
-    
+
     // Información nutricional (para productos alimenticios)
     nutritionalInfo?: NutritionalInfo;
-    
+
     // Ofertas y promociones
     offers?: ProductOffer[];
-    
+
     // Estado y destacados
     featured: boolean;
     isActive: boolean;
-    
+
     // Origen y rastreo
     sources: ProductSource[];
-    
+
     // Metadata de scraping
     scrapingMetadata?: {
         firstSeenAt: Date;
@@ -172,11 +172,11 @@ export interface ProductDocument extends Document {
         dataQuality: 'high' | 'medium' | 'low';
         validationErrors?: string[];
     };
-    
+
     // Timestamps
     createdAt?: Date;
     updatedAt?: Date;
-    
+
     // Métodos de instancia
     addOrUpdateSource(source: ProductSource): Promise<ProductDocument>;
     addOffer(offer: ProductOffer): Promise<ProductDocument>;
@@ -195,9 +195,9 @@ export interface ProductDocument extends Document {
 const VariantSchema = new Schema<ProductVariant>(
     {
         sku: { type: String },
-        ean: { 
-            type: String, 
-            required: true, 
+        ean: {
+            type: String,
+            required: true,
             index: true,
             unique: true // Garantizar unicidad del EAN
         },
@@ -247,8 +247,8 @@ const NutritionalInfoSchema = new Schema<NutritionalInfo>({
  * Esquema para ofertas y promociones
  */
 const ProductOfferSchema = new Schema<ProductOffer>({
-    type: { 
-        type: String, 
+    type: {
+        type: String,
         required: true,
         enum: ['discount', 'bundle', 'buy_x_get_y', 'loyalty']
     },
@@ -267,8 +267,8 @@ const ProductOfferSchema = new Schema<ProductOffer>({
  * Esquema para origen del producto
  */
 const ProductSourceSchema = new Schema<ProductSource>({
-    store: { 
-        type: String, 
+    store: {
+        type: String,
         required: true,
         enum: Object.values(StoreName)
     },
@@ -293,33 +293,33 @@ const ProductSchema = new Schema<ProductDocument>(
         brand: { type: Schema.Types.ObjectId, ref: 'Brand', index: true },
         category: { type: Schema.Types.ObjectId, ref: 'Category', required: true, index: true },
         subcategories: [{ type: Schema.Types.ObjectId, ref: 'Category' }],
-        
+
         // Identificadores únicos
         publicId: { type: String, index: true },
         sku: { type: String, index: true },
         ean: { type: String, index: true }, // EAN principal
-        
+
         // Descripción e imágenes
         description: { type: Schema.Types.Mixed },
         shortDescription: { type: Schema.Types.Mixed },
         images: [{ type: String }],
         imageUrl: { type: String },
         thumbnailUrl: { type: String },
-        
+
         // Categorización
         tags: [{ type: String }],
         keywords: [{ type: String }],
-        
+
         // Precios y disponibilidad
         price: { type: Number, required: true, index: true },
         currency: { type: String, default: 'ARS', enum: ['ARS', 'USD', 'PEN'] },
         available: { type: Boolean, required: true, default: true, index: true },
         stock: { type: Number },
-        
+
         // Variantes con EAN único
         variants: { type: [VariantSchema], default: [] },
         defaultVariantId: { type: Schema.Types.ObjectId },
-        
+
         // Opciones configurables
         options: [
             {
@@ -328,7 +328,7 @@ const ProductSchema = new Schema<ProductDocument>(
                 values: [{ type: String }],
             },
         ],
-        
+
         // Información física
         unit: { type: String },
         weight: { type: Number },
@@ -338,28 +338,28 @@ const ProductSchema = new Schema<ProductDocument>(
             height: { type: Number },
         },
         shippingCost: { type: Number, default: 0 },
-        
+
         // Información nutricional
         nutritionalInfo: { type: NutritionalInfoSchema },
-        
+
         // Ofertas y promociones
         offers: { type: [ProductOfferSchema], default: [] },
-        
+
         // Estado y destacados
         featured: { type: Boolean, default: false, index: true },
         isActive: { type: Boolean, default: true, index: true },
-        
+
         // Origen y rastreo
         sources: { type: [ProductSourceSchema], default: [] },
-        
+
         // Metadata de scraping
         scrapingMetadata: {
             firstSeenAt: { type: Date, default: Date.now },
             lastUpdatedAt: { type: Date, default: Date.now },
             updateCount: { type: Number, default: 0 },
             confidenceScore: { type: Number, min: 0, max: 1 },
-            dataQuality: { 
-                type: String, 
+            dataQuality: {
+                type: String,
                 enum: ['high', 'medium', 'low'],
                 default: 'medium'
             },
@@ -375,14 +375,13 @@ ProductSchema.index({ brand: 1, category: 1 });
 ProductSchema.index({ available: 1, category: 1 });
 ProductSchema.index({ available: 1, featured: 1 });
 ProductSchema.index({ price: 1, available: 1 });
-ProductSchema.index({ 'variants.ean': 1 }); // Índice para búsqueda por EAN
 ProductSchema.index({ 'sources.store': 1 }); // Índice por supermercado
 ProductSchema.index({ 'scrapingMetadata.lastUpdatedAt': -1 }); // Para limpieza de datos antiguos
 
 // Índice de texto para búsquedas
-ProductSchema.index({ 
-    name: 'text', 
-    description: 'text', 
+ProductSchema.index({
+    name: 'text',
+    description: 'text',
     keywords: 'text',
     tags: 'text'
 });
@@ -396,7 +395,7 @@ ProductSchema.pre('save', function (next) {
             this.slug = slugify(baseName);
         }
     }
-    
+
     // Actualizar metadata de scraping
     if (this.isModified() && !this.isNew) {
         if (!this.scrapingMetadata) {
@@ -412,7 +411,7 @@ ProductSchema.pre('save', function (next) {
             this.scrapingMetadata.updateCount = (this.scrapingMetadata.updateCount || 0) + 1;
         }
     }
-    
+
     next();
 });
 
@@ -426,14 +425,14 @@ ProductSchema.virtual('effectivePrice').get(function () {
             const currentDiscount = current.discountPercentage || 0;
             return currentDiscount > bestDiscount ? current : best;
         });
-        
+
         if (bestOffer.offerPrice) {
             return bestOffer.offerPrice;
         } else if (bestOffer.discountPercentage) {
             return this.price * (1 - bestOffer.discountPercentage / 100);
         }
     }
-    
+
     // Luego verificar variantes
     if (this.variants && this.variants.length > 0) {
         const availableVariants = this.variants.filter((v: { available?: boolean }) => v.available !== false);
@@ -442,7 +441,7 @@ ProductSchema.virtual('effectivePrice').get(function () {
             return Math.min(...prices);
         }
     }
-    
+
     return this.price;
 });
 
@@ -451,12 +450,12 @@ ProductSchema.virtual('bestVariant').get(function () {
     if (!this.variants || this.variants.length === 0) {
         return null;
     }
-    
+
     const availableVariants = this.variants.filter((v: ProductVariant) => v.available !== false);
     if (availableVariants.length === 0) {
         return this.variants[0];
     }
-    
+
     return availableVariants.reduce((best: ProductVariant, current: ProductVariant) => {
         const bestPrice = best.price || this.price;
         const currentPrice = current.price || this.price;
@@ -469,11 +468,11 @@ ProductSchema.virtual('isAvailable').get(function () {
     if (!this.isActive || !this.available) {
         return false;
     }
-    
+
     if (this.variants && this.variants.length > 0) {
         return this.variants.some(v => v.available !== false);
     }
-    
+
     return true;
 });
 
@@ -482,7 +481,7 @@ ProductSchema.virtual('primaryStore').get(function () {
     if (!this.sources || this.sources.length === 0) {
         return null;
     }
-    
+
     // Buscar el source más reciente
     return this.sources.reduce((latest: ProductSource, current: ProductSource) => {
         if (!latest.lastScraped) return current;
@@ -494,7 +493,7 @@ ProductSchema.virtual('primaryStore').get(function () {
 // Método para agregar o actualizar una fuente
 ProductSchema.methods.addOrUpdateSource = function (source: ProductSource) {
     const existingIndex = this.sources.findIndex((s: ProductSource) => s.store === source.store);
-    
+
     if (existingIndex >= 0) {
         this.sources[existingIndex] = {
             ...this.sources[existingIndex],
@@ -507,7 +506,7 @@ ProductSchema.methods.addOrUpdateSource = function (source: ProductSource) {
             lastScraped: new Date()
         });
     }
-    
+
     return this.save();
 };
 
@@ -516,26 +515,26 @@ ProductSchema.methods.addOffer = function (offer: ProductOffer) {
     if (!this.offers) {
         this.offers = [];
     }
-    
+
     this.offers.push({
         ...offer,
         _id: new mongoose.Types.ObjectId()
     });
-    
+
     return this.save();
 };
 
 // Método para desactivar ofertas vencidas
 ProductSchema.methods.deactivateExpiredOffers = function () {
     if (!this.offers) return Promise.resolve(this);
-    
+
     const now = new Date();
     this.offers.forEach((offer: ProductOffer) => {
         if (offer.endDate && offer.endDate < now) {
             offer.isActive = false;
         }
     });
-    
+
     return this.save();
 };
 
@@ -548,11 +547,11 @@ ProductSchema.methods.findVariantByEAN = function (ean: string): ProductVariant 
 // Método para obtener todos los EANs del producto (principal + variantes)
 ProductSchema.methods.getAllEANs = function (): string[] {
     const eans: string[] = [];
-    
+
     if (this.ean) {
         eans.push(this.ean);
     }
-    
+
     if (this.variants && this.variants.length > 0) {
         this.variants.forEach((variant: ProductVariant) => {
             if (variant.ean && !eans.includes(variant.ean)) {
@@ -560,7 +559,7 @@ ProductSchema.methods.getAllEANs = function (): string[] {
             }
         });
     }
-    
+
     return eans;
 };
 
@@ -570,18 +569,18 @@ ProductSchema.methods.validateAllEANs = function (): { valid: string[]; invalid:
     const valid: string[] = [];
     const invalid: string[] = [];
     const details: EANInfo[] = [];
-    
+
     allEANs.forEach((ean: string) => {
         const validation = validateEAN(ean);
         details.push(validation);
-        
+
         if (validation.isValid) {
             valid.push(ean);
         } else {
             invalid.push(ean);
         }
     });
-    
+
     return { valid, invalid, details };
 };
 
@@ -590,12 +589,12 @@ ProductSchema.methods.findRelatedVariantsByEAN = function (ean: string): Product
     if (!this.variants || this.variants.length === 0) {
         return [];
     }
-    
+
     const targetInfo = validateEAN(ean);
     if (!targetInfo.isValid) {
         return [];
     }
-    
+
     return this.variants.filter((variant: ProductVariant) => {
         if (!variant.ean) return false;
         const comparison = compareEANs(ean, variant.ean);
@@ -612,24 +611,24 @@ ProductSchema.methods.hasTemporaryEAN = function (): boolean {
 // Método para reemplazar EAN temporal con EAN real
 ProductSchema.methods.replaceTemporaryEAN = function (tempEan: string, realEan: string): boolean {
     let replaced = false;
-    
+
     // Verificar que el EAN temporal sea válido
     if (!isTemporaryEAN(tempEan)) {
         return false;
     }
-    
+
     // Verificar que el EAN real sea válido
     const realEanValidation = validateEAN(realEan);
     if (!realEanValidation.isValid) {
         return false;
     }
-    
+
     // Reemplazar en el producto principal
     if (this.ean === tempEan) {
         this.ean = realEan;
         replaced = true;
     }
-    
+
     // Reemplazar en variantes
     if (this.variants && this.variants.length > 0) {
         this.variants.forEach((variant: ProductVariant) => {
@@ -639,7 +638,7 @@ ProductSchema.methods.replaceTemporaryEAN = function (tempEan: string, realEan: 
             }
         });
     }
-    
+
     return replaced;
 };
 
@@ -661,7 +660,7 @@ ProductSchema.methods.updateScrapingMetadata = function (confidenceScore: number
         this.scrapingMetadata.dataQuality = dataQuality;
         this.scrapingMetadata.validationErrors = validationErrors || [];
     }
-    
+
     return this.save();
 };
 
@@ -710,7 +709,7 @@ ProductSchema.statics.findWithoutEAN = function () {
 // Agregar o actualizar un producto con EAN
 ProductSchema.statics.upsertByEAN = async function (ean: string, productData: Partial<ProductDocument>) {
     const existingProduct = await Product.findByEAN(ean);
-    
+
     if (existingProduct) {
         // Actualizar producto existente
         Object.assign(existingProduct, productData);
@@ -729,11 +728,11 @@ ProductSchema.statics.isEANUnique = async function (ean: string, excludeProductI
             { 'variants.ean': ean }
         ]
     };
-    
+
     if (excludeProductId) {
         query._id = { $ne: excludeProductId };
     }
-    
+
     const count = await this.countDocuments(query);
     return count === 0;
 };

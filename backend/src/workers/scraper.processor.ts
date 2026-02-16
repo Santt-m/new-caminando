@@ -28,10 +28,28 @@ export const processScraperJob = async (job: Job) => {
         const jobType = job.name;
 
         switch (jobType) {
-            case 'DISCOVER_CARREFOUR': // Or similar action name mapped
+            case 'DISCOVER_CARREFOUR':
                 if (store === 'carrefour') {
                     const { CarrefourHomeScraper } = await import('../scrapers/carrefour/CarrefourHomeScraper.js');
                     scraperNode = new CarrefourHomeScraper();
+                }
+                break;
+            case 'DISCOVER_JUMBO':
+                if (store === 'jumbo') {
+                    const { JumboHomeScraper } = await import('../scrapers/jumbo/JumboHomeScraper.js');
+                    scraperNode = new JumboHomeScraper();
+                }
+                break;
+            case 'DISCOVER_VEA':
+                if (store === 'vea') {
+                    const { VeaHomeScraper } = await import('../scrapers/vea/VeaHomeScraper.js');
+                    scraperNode = new VeaHomeScraper();
+                }
+                break;
+            case 'DISCOVER_DISCO':
+                if (store === 'disco') {
+                    const { DiscoHomeScraper } = await import('../scrapers/disco/DiscoHomeScraper.js');
+                    scraperNode = new DiscoHomeScraper();
                 }
                 break;
             case 'CRAWL_CATEGORY':
@@ -46,10 +64,20 @@ export const processScraperJob = async (job: Job) => {
                     scraperNode = new CarrefourBrandScraper();
                 }
                 break;
+            case 'SCRAPE_PRODUCTS':
             case 'SCRAPE_PRODUCT':
                 if (store === 'carrefour') {
                     const { CarrefourProductScraper } = await import('../scrapers/carrefour/CarrefourProductScraper.js');
                     scraperNode = new CarrefourProductScraper();
+                } else if (store === 'jumbo') {
+                    const { JumboProductScraper } = await import('../scrapers/jumbo/JumboProductScraper.js');
+                    scraperNode = new JumboProductScraper();
+                } else if (store === 'vea') {
+                    const { VeaProductScraper } = await import('../scrapers/vea/VeaProductScraper.js');
+                    scraperNode = new VeaProductScraper();
+                } else if (store === 'disco') {
+                    const { DiscoProductScraper } = await import('../scrapers/disco/DiscoProductScraper.js');
+                    scraperNode = new DiscoProductScraper();
                 }
                 break;
         }

@@ -1,6 +1,4 @@
-import axios from 'axios';
-
-import { API_BASE_URL as API_URL } from '@/utils/api.config';
+import { adminApi } from './admin/auth.service';
 
 interface CloudinaryUploadResult {
   url: string;              // URL del proxy (/api/images/...)
@@ -57,42 +55,64 @@ export interface Category {
   color?: string;
 }
 
-// Helper to get auth token
-const getAuthHeaders = () => ({
-  'Content-Type': 'application/json',
-  'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
-});
+// Category services
+export const categoryService = {
+  async getCategories(): Promise<Category[]> {
+    const response = await adminApi.get('/categories');
+    return response.data.data;
+  },
 
-const getFormAuthHeaders = () => ({
-  'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
-});
+  async getCategory(id: string): Promise<Category> {
+    const response = await adminApi.get(`/categories/${id}`);
+    return response.data.data;
+  },
+
+  async createCategory(category: Omit<Category, 'order'>): Promise<Category> {
+    const response = await adminApi.post('/categories', category);
+    return response.data.data;
+  },
+
+  async updateCategory(id: string, updates: Partial<Category>): Promise<Category> {
+    const response = await adminApi.put(`/categories/${id}`, updates);
+    return response.data.data;
+  },
+
+  async deleteCategory(id: string): Promise<{ id: string }> {
+    const response = await adminApi.delete(`/categories/${id}`);
+    return response.data.data;
+  },
+
+  async toggleCategoryActive(id: string): Promise<Category> {
+    const response = await adminApi.patch(`/categories/${id}/toggle`);
+    return response.data.data;
+  },
+
+  async reorderCategories(categoryOrders: Array<{ id: string; order: number }>): Promise<Category[]> {
+    const response = await adminApi.post('/categories/reorder', { categoryOrders });
+    return response.data.data;
+  },
+};
 
 // Cloudinary services
 export const cloudinaryService = {
-  async uploadImage(file: File, folder: string = 'products'): Promise<CloudinaryUploadResult> {
+  async uploadImage(file: File, folder: string = 'products', onUploadProgress?: (progressEvent: any) => void): Promise<CloudinaryUploadResult> {
     const formData = new FormData();
     formData.append('image', file);
     formData.append('folder', folder);
 
-    const response = await axios.post<{ data: CloudinaryUploadResult }>(
-      `${API_URL}/panel/cloudinary/upload`,
-      formData,
-      {
-        headers: getFormAuthHeaders(),
-      }
-    );
-
+    const response = await adminApi.post('/cloudinary/upload', formData, {
+      onUploadProgress
+    });
     return response.data.data;
   },
 
   async deleteImage(publicId: string): Promise<{ result: string }> {
-    const response = await axios.delete<{ data: { result: string } }>(
-      `${API_URL}/panel/cloudinary/images/${encodeURIComponent(publicId)}`,
-      {
-        headers: getAuthHeaders(),
-      }
-    );
+    const response = await adminApi.delete(`/cloudinary/images/${encodeURIComponent(publicId)}`);
+    return response.data.data;
+  },
 
+  async getFolders(): Promise<{ name: string; count: number; bytes: number }[]> {
+    const response = await adminApi.get('/cloudinary/folders');
     return response.data.data;
   },
 
@@ -101,119 +121,22 @@ export const cloudinaryService = {
     if (folder) params.append('folder', folder);
     params.append('maxResults', maxResults.toString());
 
-    const response = await axios.get<{ data: CloudinaryImage[] }>(
-      `${API_URL}/panel/cloudinary/images?${params}`,
-      {
-        headers: getAuthHeaders(),
-      }
-    );
-
+    const response = await adminApi.get(`/cloudinary/images?${params}`);
     return response.data.data;
   },
 
   async getStats(): Promise<CloudinaryStats> {
-    const response = await axios.get<{ data: CloudinaryStats }>(
-      `${API_URL}/panel/cloudinary/stats`,
-      {
-        headers: getAuthHeaders(),
-      }
-    );
-
+    const response = await adminApi.get('/cloudinary/stats');
     return response.data.data;
   },
 
   async getImageDetails(publicId: string): Promise<CloudinaryImage> {
-    const response = await axios.get<{ data: CloudinaryImage }>(
-      `${API_URL}/panel/cloudinary/images/${publicId}`,
-      {
-        headers: getAuthHeaders(),
-      }
-    );
-
-    return response.data.data;
-  },
-};
-
-// Category services
-export const categoryService = {
-  async getCategories(): Promise<Category[]> {
-    const response = await axios.get<{ data: Category[] }>(
-      `${API_URL}/panel/categories`,
-      {
-        headers: getAuthHeaders(),
-      }
-    );
-
+    const response = await adminApi.get(`/cloudinary/images/${publicId}`);
     return response.data.data;
   },
 
-  async getCategory(id: string): Promise<Category> {
-    const response = await axios.get<{ data: Category }>(
-      `${API_URL}/panel/categories/${id}`,
-      {
-        headers: getAuthHeaders(),
-      }
-    );
-
-    return response.data.data;
-  },
-
-  async createCategory(category: Omit<Category, 'order'>): Promise<Category> {
-    const response = await axios.post<{ data: Category }>(
-      `${API_URL}/panel/categories`,
-      category,
-      {
-        headers: getAuthHeaders(),
-      }
-    );
-
-    return response.data.data;
-  },
-
-  async updateCategory(id: string, updates: Partial<Category>): Promise<Category> {
-    const response = await axios.put<{ data: Category }>(
-      `${API_URL}/panel/categories/${id}`,
-      updates,
-      {
-        headers: getAuthHeaders(),
-      }
-    );
-
-    return response.data.data;
-  },
-
-  async deleteCategory(id: string): Promise<{ id: string }> {
-    const response = await axios.delete<{ data: { id: string } }>(
-      `${API_URL}/panel/categories/${id}`,
-      {
-        headers: getAuthHeaders(),
-      }
-    );
-
-    return response.data.data;
-  },
-
-  async toggleCategoryActive(id: string): Promise<Category> {
-    const response = await axios.patch<{ data: Category }>(
-      `${API_URL}/panel/categories/${id}/toggle`,
-      {},
-      {
-        headers: getAuthHeaders(),
-      }
-    );
-
-    return response.data.data;
-  },
-
-  async reorderCategories(categoryOrders: Array<{ id: string; order: number }>): Promise<Category[]> {
-    const response = await axios.post<{ data: Category[] }>(
-      `${API_URL}/panel/categories/reorder`,
-      { categoryOrders },
-      {
-        headers: getAuthHeaders(),
-      }
-    );
-
+  async getAnalytics(): Promise<any> {
+    const response = await adminApi.get('/cloudinary/metrics/analytics');
     return response.data.data;
   },
 };

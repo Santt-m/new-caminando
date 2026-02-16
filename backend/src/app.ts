@@ -1,4 +1,5 @@
 import express from 'express';
+import path from 'path';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
@@ -25,6 +26,11 @@ export const createApp = () => {
   app.use(securityGuard);
   app.use(honeypot);
   app.use(trackRequest);
+
+  // Servir archivos estáticos (Capturas de Scraper, etc)
+  app.use('/public', express.static(path.join(process.cwd(), 'public')));
+  app.use('/screenshots', express.static(path.join(process.cwd(), 'public', 'screenshots')));
+
   app.use('/api/v1', apiRateLimiter, apiRouter);
   app.use('/api/v1/panel', apiRateLimiter, panelRouter);
 

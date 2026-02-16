@@ -17,7 +17,7 @@ export class BrowserFactory {
 
         this.pool = createPool({
             create: async (): Promise<Browser> => {
-                const headless = env.nodeEnv === 'production';
+                const headless = env.headless;
                 logger.info(`Creando nueva instancia de navegador (Headless: ${headless})...`, { module: 'BROWSER' });
 
                 const browser = await chromium.launch({

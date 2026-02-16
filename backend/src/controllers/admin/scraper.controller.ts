@@ -4,6 +4,9 @@ import { QueueFactory } from '../../config/bullmq/QueueFactory.js';
 import { JOB_PRIORITIES } from '../../config/bullmq/QueueConfig.js';
 import { success } from '../../utils/response.js';
 import { Activity } from '../../models/Activity.js';
+import { ScraperConfig } from '../../models/ScraperConfig.js';
+import { StoreName } from '../../config/bullmq/QueueConfig.js';
+import { Product } from '../../models/ProductEnhanced.js';
 
 /**
  * Scraper Controller para el Panel de Administración
@@ -14,31 +17,122 @@ export const ScraperController = {
      * Obtener el estado actual de todos los scrapers
      */
     getStatus: asyncHandler(async (_req: Request, res: Response) => {
-        // En un futuro esto vendrá de Redis o de una tabla de estados
-        const scrapers = [
-            {
-                id: 'coto',
-                name: 'Coto',
-                status: 'idle',
-                lastRun: new Date(),
+        const queue = QueueFactory.getQueue('scraper-tasks');
+        const [_, configs] = await Promise.all([
+            queue.getJobCounts('active', 'waiting', 'delayed', 'failed', 'completed'),
+            ScraperConfig.find().lean()
+        ]);
+
+        const stores = Object.values(StoreName);
+        const scrapers = await Promise.all(stores.map(async (storeId) => {
+            const config = configs.find(c => c.store === storeId);
+
+            // Buscar última ejecución en logs
+            const lastActivity = await Activity.findOne({
+                module: 'SCRAPER',
+                'details.scraperId': storeId
+            }).sort({ createdAt: -1 }).lean();
+
+            // Buscar cantidad de productos
+            const productsCount = await Product.countDocuments({
+                'sources.store': storeId
+            });
+
+            // Determinar si está "corriendo" (si hay jobs activos en la cola para este store)
+            const activeJobs = await queue.getJobs(['active']);
+            const isRunning = activeJobs.some(job => job.data?.store === storeId);
+
+            return {
+                id: storeId,
+                name: storeId.charAt(0).toUpperCase() + storeId.slice(1),
+                status: isRunning ? 'running' : 'idle',
+                lastRun: lastActivity?.createdAt || config?.lastRun || null,
                 metrics: {
-                    productsCount: 15420,
-                    errorCount: 5,
+                    productsCount,
+                    errorCount: lastActivity?.level === 'error' ? 1 : 0,
+                },
+                settings: {
+                    enabled: config?.enabled ?? true,
+                    maxConcurrency: config?.maxConcurrency ?? 2,
+                    retryCount: config?.retryCount ?? 3,
+                    delayBetweenRequests: config?.delayBetweenRequests ?? 1000,
+                    retryDelay: config?.delayBetweenRequests ?? 1000, // Frontend alias
+                    productUpdateFrequency: config?.productUpdateFrequency ?? 24,
                 }
-            },
-            {
-                id: 'carrefour',
-                name: 'Carrefour',
-                status: 'idle',
-                lastRun: new Date(),
-                metrics: {
-                    productsCount: 12100,
-                    errorCount: 2,
-                }
-            }
-        ];
+            };
+        }));
 
         return success(res, scrapers, 'Estados de scrapers obtenidos correctamente');
+    }),
+
+    /**
+     * Obtener logs de un scraper específico
+     */
+    getLogs: asyncHandler(async (req: Request, res: Response) => {
+        const { id } = req.params;
+        const limit = parseInt(req.query.limit as string) || 50;
+
+        const logs = await Activity.find({
+            $or: [
+                { 'details.store': id },
+                { 'details.scraperId': id },
+                { module: 'SCRAPER', 'details.scraperId': id },
+                { module: 'SCRAPER_NODE', 'details.store': id },
+                { module: 'PROCESSOR', 'details.store': id },
+                { module: 'BROWSER', 'details.store': id },
+                { module: 'WORKER', 'details.store': id }
+            ]
+        })
+            .sort({ createdAt: -1 })
+            .limit(limit)
+            .lean();
+
+        const formattedLogs = logs.map(log => ({
+            id: log._id.toString(),
+            timestamp: log.createdAt,
+            level: log.level,
+            message: log.message,
+            module: log.module,
+            details: log.details
+        }));
+
+        return success(res, formattedLogs);
+    }),
+
+    /**
+     * Obtener estado de la cola de BullMQ
+     */
+    getQueue: asyncHandler(async (_req: Request, res: Response) => {
+        const queue = QueueFactory.getQueue('scraper-tasks');
+        const [counts, jobs] = await Promise.all([
+            queue.getJobCounts('active', 'waiting', 'delayed', 'failed', 'completed'),
+            queue.getJobs(['active', 'waiting', 'delayed', 'failed'], 0, 50, true)
+        ]);
+
+        const formattedJobs = await Promise.all(jobs.map(async job => {
+            let type: any = job.name;
+            if (job.name.startsWith('DISCOVER_')) type = 'discover-categories';
+            else if (job.name === 'CRAWL_CATEGORY') type = 'discover-subcategories';
+            else if (job.name === 'SCRAPE_PRODUCT') type = 'scrape-products';
+
+            const status = await job.getState();
+
+            return {
+                id: job.id,
+                type,
+                target: `${job.data?.store || 'Global'}${job.data?.action ? ` - ${job.data.action}` : ''}`,
+                status,
+                attempts: job.attemptsMade,
+                timestamp: new Date(job.timestamp).toISOString(),
+                progress: job.progress,
+                failedReason: job.failedReason
+            };
+        }));
+
+        return success(res, {
+            counts,
+            jobs: formattedJobs
+        });
     }),
 
     /**
@@ -128,6 +222,132 @@ export const ScraperController = {
     }),
 
     /**
+     * Iniciar scraping para todos los supermercados
+     */
+    scrapeAll: asyncHandler(async (req: Request, res: Response) => {
+        const queue = QueueFactory.getQueue('scraper-tasks');
+        const stores = Object.values(StoreName);
+
+        for (const storeId of stores) {
+            await queue.add('SCRAPE_PRODUCT', {
+                store: storeId,
+                action: 'scrape-products'
+            }, {
+                priority: JOB_PRIORITIES.SCRAPE_PRODUCT
+            });
+        }
+
+        await Activity.create({
+            module: 'SCRAPER',
+            eventType: 'SCRAPING',
+            level: 'info',
+            message: 'Iniciado scraping general para todos los supermercados',
+            details: { action: 'scrape-all' },
+            ip: req.ip,
+            userAgent: req.get('User-Agent') || 'Unknown'
+        });
+
+        return success(res, null, 'Scraping general iniciado con éxito para todos los supermercados');
+    }),
+
+    /**
+     * Limpiar completamente la cola de BullMQ
+     */
+    purgeQueue: asyncHandler(async (req: Request, res: Response) => {
+        const queue = QueueFactory.getQueue('scraper-tasks');
+
+        // 1. Pausar la cola para evitar procesamientos mientras limpiamos
+        await queue.pause();
+
+        try {
+            // 2. Obtener todos los trabajos en cualquier estado (límite alto)
+            const jobs = await queue.getJobs(['active', 'waiting', 'delayed', 'paused', 'failed', 'completed'], 0, 2000);
+
+            // 3. Remover cada uno individualmente
+            await Promise.all(jobs.map(async (job) => {
+                try {
+                    // Si está activo, intentar descartarlo para que no se reintente
+                    if (await job.isActive()) {
+                        await job.discard();
+                    }
+                    await job.remove();
+                } catch (err) {
+                    // Ignorar errores de remoción individual
+                }
+            }));
+
+            // 4. Limpieza masiva de metadatos de la cola
+            await Promise.all([
+                queue.clean(0, 0, 'wait'),
+                queue.clean(0, 0, 'active'),
+                queue.clean(0, 0, 'delayed'),
+                queue.clean(0, 0, 'failed'),
+                queue.clean(0, 0, 'completed'),
+                queue.drain(true)
+            ]);
+        } finally {
+            // 5. Reanudar la cola
+            await queue.resume();
+        }
+
+        await Activity.create({
+            module: 'SCRAPER',
+            eventType: 'SYSTEM',
+            level: 'warn',
+            message: 'Cola de scrapers vaciada manualmente',
+            ip: req.ip,
+            userAgent: req.get('User-Agent') || 'Unknown'
+        });
+
+        return success(res, null, 'Cola de trabajos limpiada correctamente');
+    }),
+
+    /**
+     * Detener todos los trabajos de un supermercado específico
+     */
+    stopScraper: asyncHandler(async (req: Request, res: Response) => {
+        const { id } = req.params;
+        const queue = QueueFactory.getQueue('scraper-tasks');
+
+        // Obtener todos los trabajos pendientes
+        const jobs = await queue.getJobs(['waiting', 'delayed', 'paused']);
+        const jobsToRemove = jobs.filter(job => job.data?.store === id);
+
+        for (const job of jobsToRemove) {
+            await job.remove();
+        }
+
+        await Activity.create({
+            module: 'SCRAPER',
+            eventType: 'SYSTEM',
+            level: 'info',
+            message: `Detenidos todos los trabajos pendientes para ${id}`,
+            details: { scraperId: id },
+            ip: req.ip,
+            userAgent: req.get('User-Agent') || 'Unknown'
+        });
+
+        return success(res, null, `Se han detenido ${jobsToRemove.length} trabajos para ${id}`);
+    }),
+
+    /**
+     * Cancelar un trabajo específico
+     */
+    cancelJob: asyncHandler(async (req: Request, res: Response) => {
+        const { jobId } = req.params;
+        const queue = QueueFactory.getQueue('scraper-tasks');
+
+        const job = await queue.getJob(jobId);
+        if (!job) {
+            return success(res, null, 'Trabajo no encontrado o ya procesado');
+        }
+
+        await job.remove();
+
+        return success(res, null, `Trabajo #${jobId} cancelado con éxito`);
+    }),
+
+    /**
      * Actualizar configuración del scraper
      */
     updateSettings: asyncHandler(async (req: Request, res: Response) => {
@@ -136,18 +356,30 @@ export const ScraperController = {
 
         console.log(`[Scraper] Actualizando configuración para ${id}:`, settings);
 
-        // TODO: Persistir en base de datos. 
+        const config = await ScraperConfig.findOneAndUpdate(
+            { store: id },
+            {
+                $set: {
+                    enabled: settings.enabled,
+                    maxConcurrency: settings.maxConcurrency,
+                    retryCount: settings.retryCount,
+                    delayBetweenRequests: settings.delayBetweenRequests || settings.retryDelay,
+                    productUpdateFrequency: settings.productUpdateFrequency
+                }
+            },
+            { upsert: true, new: true }
+        );
 
         await Activity.create({
             module: 'SCRAPER',
             eventType: 'SYSTEM',
             level: 'info',
             message: `Actualizada configuración para scraper ${id}`,
-            details: { scraperId: id, settings },
+            details: { scraperId: id, settings: config },
             ip: req.ip,
             userAgent: req.get('User-Agent') || 'Unknown'
         });
 
-        return success(res, null, `Configuración de ${id} actualizada con éxito`);
+        return success(res, config, `Configuración de ${id} actualizada con éxito`);
     })
 };

@@ -19,7 +19,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { API_BASE_URL } from '@/utils/api.config';
+import { cloudinaryService } from '@/services/adminMediaService';
 
 interface CloudinaryStats {
   storage: {
@@ -76,48 +76,28 @@ export const CloudinaryDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const API_URL = API_BASE_URL;
-
   const loadStats = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const token = localStorage.getItem('adminToken');
-      const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      };
-
-      // Load all data in parallel
-      const [statsResponse, foldersResponse, analyticsResponse] = await Promise.all([
-        fetch(`${API_URL}/panel/cloudinary/stats`, { headers }),
-        fetch(`${API_URL}/panel/cloudinary/folders`, { headers }),
-        fetch(`${API_URL}/panel/cloudinary/metrics/analytics`, { headers })
+      // Load all data in parallel using cloudinaryService
+      const [statsData, foldersData, analyticsData] = await Promise.all([
+        cloudinaryService.getStats(),
+        cloudinaryService.getFolders(),
+        cloudinaryService.getAnalytics()
       ]);
 
-      const statsData = await statsResponse.json();
-      const foldersData = await foldersResponse.json();
-      const analyticsData = await analyticsResponse.json();
-
-      if (!statsResponse.ok) {
-        throw new Error(statsData.message || 'Error al cargar estadísticas');
-      }
-
-      setStats(statsData.data);
-      if (foldersResponse.ok) {
-        setFolders(foldersData.data || []);
-      }
-      if (analyticsResponse.ok) {
-        setAnalytics(analyticsData.data);
-      }
+      setStats(statsData);
+      setFolders(foldersData || []);
+      setAnalytics(analyticsData);
     } catch (err) {
       console.error('Error loading stats:', err);
       setError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
       setLoading(false);
     }
-  }, [API_URL]);
+  }, []);
 
   useEffect(() => {
     loadStats();
@@ -404,7 +384,7 @@ export const CloudinaryDashboard = () => {
                           />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{upload.publicId}</p>
+                          <p className="font-medium truncate">{upload.publicId.split('/').pop()}</p>
                           <p className="text-sm text-muted-foreground">
                             {formatDate(upload.createdAt)} · {formatBytes(upload.bytes)}
                           </p>
@@ -456,7 +436,7 @@ export const CloudinaryDashboard = () => {
                           </div>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{image.publicId}</p>
+                          <p className="font-medium truncate">{image.publicId.split('/').pop()}</p>
                           <p className="text-sm text-muted-foreground">
                             {image.format?.toUpperCase()} · {image.width}x{image.height}
                           </p>

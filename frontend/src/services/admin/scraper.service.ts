@@ -1,9 +1,11 @@
 import { adminApi } from './auth.service';
 
 export interface ScraperSettings {
+    enabled: boolean;
     maxConcurrency: number;
     retryCount: number;
     retryDelay: number;
+    productUpdateFrequency: number;
 }
 
 export interface ScraperStatus {
@@ -32,12 +34,20 @@ export interface ScraperLog {
     timestamp: string;
     level: 'info' | 'warn' | 'error' | 'debug';
     message: string;
+    details?: any;
 }
 
 export const AdminScraperService = {
     getStatus: async (): Promise<ScraperStatus[]> => {
         const { data } = await adminApi.get('/scraper/status');
         return data.data;
+    },
+
+    getScreenshotUrl: (scraperId: string): string => {
+        const baseUrl = adminApi.defaults.baseURL || '';
+        // El backend sirve screenshots en /screenshots/ID/latest.jpg
+        const rootUrl = baseUrl.replace('/api/v1/panel', '') || 'http://localhost:3002';
+        return `${rootUrl}/screenshots/${scraperId}/latest.jpg?t=${Date.now()}`;
     },
 
     discoverCategories: async (scraperId: string): Promise<any> => {
@@ -56,39 +66,37 @@ export const AdminScraperService = {
     },
 
     getQueueStatus: async (): Promise<ScraperJob[]> => {
-        // Mock de datos de cola
-        return [
-            {
-                id: '12345',
-                type: 'scrape-products',
-                target: 'COTO - Almacén',
-                status: 'active',
-                attempts: 0,
-                timestamp: new Date().toISOString(),
-            },
-            {
-                id: '12346',
-                type: 'discover-subcategories',
-                target: 'CARREFOUR - Hogar',
-                status: 'waiting',
-                attempts: 0,
-                timestamp: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
-            }
-        ];
+        const { data } = await adminApi.get('/scraper/queue');
+        return data.data.jobs;
     },
 
     getLogs: async (scraperId: string): Promise<ScraperLog[]> => {
-        // Mock de logs
-        return [
-            { timestamp: new Date().toISOString(), level: 'info', message: `Iniciando sesión en ${scraperId}...` },
-            { timestamp: new Date().toISOString(), level: 'info', message: 'Navegando a la categoría Almacén' },
-            { timestamp: new Date().toISOString(), level: 'debug', message: 'Elemento de producto encontrado: Arroz Gallo 1kg' },
-            { timestamp: new Date().toISOString(), level: 'warn', message: 'Timeout lento en selector de precio, reintentando...' },
-        ];
+        const { data } = await adminApi.get(`/scraper/${scraperId}/logs`);
+        return data.data;
     },
 
     updateSettings: async (scraperId: string, settings: ScraperSettings): Promise<any> => {
         const { data } = await adminApi.patch(`/scraper/${scraperId}/settings`, settings);
+        return data;
+    },
+
+    scrapeAll: async (): Promise<any> => {
+        const { data } = await adminApi.post('/scraper/scrape-all');
+        return data;
+    },
+
+    purgeQueue: async (): Promise<any> => {
+        const { data } = await adminApi.post('/scraper/purge-queue');
+        return data;
+    },
+
+    stopScraper: async (scraperId: string): Promise<any> => {
+        const { data } = await adminApi.post(`/scraper/${scraperId}/stop`);
+        return data;
+    },
+
+    cancelJob: async (jobId: string): Promise<any> => {
+        const { data } = await adminApi.delete(`/scraper/jobs/${jobId}`);
         return data;
     }
 };

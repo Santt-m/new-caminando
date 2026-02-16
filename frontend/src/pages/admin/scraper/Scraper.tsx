@@ -64,6 +64,44 @@ export const ScraperDashboard = () => {
         }
     });
 
+    const scrapeAllMutation = useMutation({
+        mutationFn: () => AdminScraperService.scrapeAll(),
+        onSuccess: () => {
+            toast.success('Iniciado scraping general para todos los supermercados');
+            queryClient.invalidateQueries({ queryKey: ['admin-scrapers'] });
+            queryClient.invalidateQueries({ queryKey: ['admin-scraper-queue'] });
+        },
+        onError: (err: any) => toast.error(err.message || 'Error al iniciar scraping general')
+    });
+
+    const purgeQueueMutation = useMutation({
+        mutationFn: () => AdminScraperService.purgeQueue(),
+        onSuccess: () => {
+            toast.success('Cola de trabajos limpiada correctamente');
+            queryClient.invalidateQueries({ queryKey: ['admin-scraper-queue'] });
+        },
+        onError: (err: any) => toast.error(err.message || 'Error al limpiar la cola')
+    });
+
+    const stopScraperMutation = useMutation({
+        mutationFn: (id: string) => AdminScraperService.stopScraper(id),
+        onSuccess: (_, id) => {
+            toast.success(`Trabajos detenidos para ${id}`);
+            queryClient.invalidateQueries({ queryKey: ['admin-scrapers'] });
+            queryClient.invalidateQueries({ queryKey: ['admin-scraper-queue'] });
+        },
+        onError: (err: any) => toast.error(err.message || 'Error al detener el scraper')
+    });
+
+    const cancelJobMutation = useMutation({
+        mutationFn: (jobId: string) => AdminScraperService.cancelJob(jobId),
+        onSuccess: () => {
+            toast.success('Trabajo cancelado con éxito');
+            queryClient.invalidateQueries({ queryKey: ['admin-scraper-queue'] });
+        },
+        onError: (err: any) => toast.error(err.message || 'Error al cancelar el trabajo')
+    });
+
     const handleAction = (id: string, action: string) => {
         mutation.mutate({ id, action });
     };
@@ -81,18 +119,31 @@ export const ScraperDashboard = () => {
             {/* Header Section */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Centro de Control de Scraper</h1>
+                    <h1 className="text-3xl font-bold tracking-tight text-foreground">Centro de Control de Scraper</h1>
                     <p className="text-muted-foreground flex items-center gap-2 mt-1">
                         <span className="flex h-2 w-2 rounded-full bg-green-500 animate-pulse" />
                         Sistema de monitoreo y control de extracción de datos en tiempo real.
                     </p>
                 </div>
                 <div className="flex items-center gap-3 w-full md:w-auto">
-                    <Button variant="outline" className="gap-2 flex-1 md:flex-none h-10 border-primary/20 hover:bg-primary/5">
+                    <Button
+                        variant="outline"
+                        className="gap-2 flex-1 md:flex-none h-10 border-primary/20 hover:bg-primary/5"
+                        onClick={() => {
+                            queryClient.invalidateQueries({ queryKey: ['admin-scrapers'] });
+                            queryClient.invalidateQueries({ queryKey: ['admin-scraper-queue'] });
+                            toast.info('Sincronizando estados...');
+                        }}
+                    >
                         <RefreshCcw className="h-4 w-4" /> Refrescar
                     </Button>
-                    <Button className="gap-2 flex-1 md:flex-none h-10 shadow-lg shadow-primary/20">
-                        <Play className="h-4 w-4" /> Scrapear Todo
+                    <Button
+                        className="gap-2 flex-1 md:flex-none h-10 shadow-lg shadow-primary/20"
+                        onClick={() => scrapeAllMutation.mutate()}
+                        disabled={scrapeAllMutation.isPending}
+                    >
+                        {scrapeAllMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                        Scrapear Todo
                     </Button>
                 </div>
             </div>
@@ -185,7 +236,17 @@ export const ScraperDashboard = () => {
                             >
                                 <Play className="h-3.5 w-3.5" /> Iniciar Full Scrape
                             </Button>
-                            <Button variant="outline" size="icon" className="h-10 w-10 text-destructive border-destructive/20 hover:bg-destructive/5 hover:text-destructive">
+                            <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-10 w-10 text-destructive border-destructive/20 hover:bg-destructive/5 hover:text-destructive"
+                                onClick={() => {
+                                    if (confirm(`¿Detener todos los trabajos de ${scraper.name}?`)) {
+                                        stopScraperMutation.mutate(scraper.id);
+                                    }
+                                }}
+                                disabled={stopScraperMutation.isPending}
+                            >
                                 <StopCircle className="h-4 w-4" />
                             </Button>
                         </CardFooter>
@@ -197,18 +258,38 @@ export const ScraperDashboard = () => {
             <div className="space-y-4 pt-6 border-t">
                 <div className="flex justify-between items-center">
                     <div>
-                        <h2 className="text-2xl font-bold flex items-center gap-3">
+                        <h2 className="text-2xl font-bold flex items-center gap-3 text-foreground">
                             Gestor de Colas
                             {queueLoading && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
                         </h2>
                         <p className="text-muted-foreground text-sm">Visualización de trabajos pendientes y activos en BullMQ.</p>
                     </div>
-                    <Badge variant="outline" className="h-7 px-3 border-dashed">
-                        {queue?.length || 0} Trabajos en cola
-                    </Badge>
+                    <div className="flex items-center gap-3">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 text-destructive hover:bg-destructive/10 gap-2 border border-destructive/10"
+                            onClick={() => {
+                                if (confirm('¿Estás seguro de que deseas limpiar TODOS los trabajos pendientes?')) {
+                                    purgeQueueMutation.mutate();
+                                }
+                            }}
+                            disabled={purgeQueueMutation.isPending}
+                        >
+                            {purgeQueueMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <StopCircle className="h-3 w-3" />}
+                            Purgar Cola
+                        </Button>
+                        <Badge variant="outline" className="h-7 px-3 border-dashed">
+                            {queue?.length || 0} Trabajos en cola
+                        </Badge>
+                    </div>
                 </div>
 
-                <ScraperQueue jobs={queue || []} isLoading={queueLoading} />
+                <ScraperQueue
+                    jobs={queue || []}
+                    isLoading={queueLoading}
+                    onCancelJob={(jobId) => cancelJobMutation.mutate(jobId)}
+                />
             </div>
 
             {/* Detail Modal */}

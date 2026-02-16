@@ -132,6 +132,12 @@ export interface Product {
         width: number;
         height: number;
     };
+    sources?: {
+        store: string;
+        price: number;
+        originalUrl?: string;
+        lastScraped: string;
+    }[];
     createdAt: string;
     updatedAt: string;
 }

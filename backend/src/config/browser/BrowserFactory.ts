@@ -40,8 +40,8 @@ export class BrowserFactory {
             }
         }, {
             min: 1,                         // Mantener al menos 1 navegador listo
-            max: 4,                         // Máximo 4 navegadores simultáneos para ahorrar recursos
-            acquireTimeoutMillis: 60000,    // 60s para adquirir
+            max: 5,                         // Máximo 5 navegadores simultáneos (match/exceed worker concurrency)
+            acquireTimeoutMillis: 300000,   // 5 minutos para adquirir (evita timeouts si hay cola)
             idleTimeoutMillis: 600000,      // 10 minutos idle
             evictionRunIntervalMillis: 120000, // Chequear cada 2min
             testOnBorrow: true,             // Validar que el navegador funciona

@@ -49,11 +49,12 @@ export class JumboHomeScraper extends BaseScraper {
         await this.processCategoryTree(nodes, null, queue);
     }
 
-    private async processCategoryTree(nodes: any[], parentId: any | null, queue: any): Promise<void> {
+    private async processCategoryTree(nodes: any[], parentId: any | null, queue: any, idPath: string = ''): Promise<void> {
         for (const node of nodes) {
             try {
                 logger.info(`[${this.name}] Processing category: ${node.name}`, { module: 'SCRAPER_NODE' });
                 // 1. Map to Category Model
+                const currentIdPath = idPath ? `${idPath}/${node.id}` : `${node.id}`;
                 let url = node.url || '';
                 url = url.replace(/^https?:\/\/[^/]+/, '');
 
@@ -81,6 +82,7 @@ export class JumboHomeScraper extends BaseScraper {
                             'storeMappings.jumbo': {
                                 externalId: node.id,
                                 url: url,
+                                idPath: currentIdPath,
                                 path: node.url.replace(/^https?:\/\/[^/]+/, '') // This is usually /cat/sub/sub/
                             }
                         }
@@ -97,13 +99,14 @@ export class JumboHomeScraper extends BaseScraper {
                         action: 'scrape-products',
                         categoryId: categoryDoc._id,
                         externalId: node.id, // Critical for Product API
-                        url: url
+                        url: url,
+                        idPath: currentIdPath
                     }, {
                         priority: JOB_PRIORITIES.DISCOVER
                     });
                 } else {
                     // Recursively process children
-                    await this.processCategoryTree(node.children, categoryDoc._id, queue);
+                    await this.processCategoryTree(node.children, categoryDoc._id, queue, currentIdPath);
                 }
 
             } catch (error) {

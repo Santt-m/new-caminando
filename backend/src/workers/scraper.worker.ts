@@ -17,7 +17,7 @@ export const startScraperWorker = () => {
         }
     }, {
         connection: connection as ConnectionOptions,
-        concurrency: 5, // Ajustable según necesidad
+        concurrency: 3, // Reducido para evitar timeouts de recursos
         removeOnComplete: { count: 100 },
         removeOnFail: { count: 500 }
     });

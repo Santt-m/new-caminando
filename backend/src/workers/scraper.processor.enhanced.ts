@@ -7,6 +7,7 @@ import { Category } from '../models/Category.js';
 import { Brand } from '../models/Brand.js';
 import { Product } from '../models/ProductEnhanced.js';
 import { StoreName } from '../config/bullmq/QueueConfig.js';
+import { slugify } from '../utils/slugify.js';
 import { BrandExtractor } from '../shared/utils/BrandExtractor.js';
 import { BrandMatcher } from '../shared/utils/BrandMatcher.js';
 import { CategoryMapper } from '../shared/utils/CategoryMapper.js';
@@ -78,7 +79,7 @@ export const processScraperJobEnhanced = async (job: Job) => {
 
     // Inicializar mapeador de categorías
     const categoryMapper = new CategoryMapper();
-    
+
     // Inicializar matcher de marcas con soporte para supermercado específico
     const brandMatcher = new BrandMatcher({}, store);
     await brandMatcher.loadBrands();
@@ -106,7 +107,7 @@ export const processScraperJobEnhanced = async (job: Job) => {
 
     try {
         const page = await context.newPage();
-        
+
         // Configurar stealth y timeouts
         await page.setDefaultTimeout(30000);
         await page.setDefaultNavigationTimeout(30000);
@@ -132,8 +133,8 @@ export const processScraperJobEnhanced = async (job: Job) => {
                 break;
 
             default:
-                logger.warn(`[Enhanced] Nombre de trabajo desconocido: ${job.name}`, { 
-                    module: 'SCRAPER_ENHANCED' 
+                logger.warn(`[Enhanced] Nombre de trabajo desconocido: ${job.name}`, {
+                    module: 'SCRAPER_ENHANCED'
                 });
                 result.errors.push(`Trabajo desconocido: ${job.name}`);
         }
@@ -186,8 +187,8 @@ export const processScraperJobEnhanced = async (job: Job) => {
  * Descubre categorías principales desde la home del supermercado
  */
 async function discoverCategories(page: Page, store: StoreName): Promise<ScrapingResult> {
-    logger.info(`[Enhanced] Descubriendo categorías principales para ${store}`, { 
-        module: 'SCRAPER_ENHANCED' 
+    logger.info(`[Enhanced] Descubriendo categorías principales para ${store}`, {
+        module: 'SCRAPER_ENHANCED'
     });
 
     const result: ScrapingResult = { categories: [], brands: [], errors: [] };
@@ -210,7 +211,7 @@ async function discoverCategories(page: Page, store: StoreName): Promise<Scrapin
         }
 
         await page.goto(storeUrl, { waitUntil: 'networkidle' });
-        
+
         // Esperar a que se cargue el menú de categorías
         await page.waitForTimeout(2000);
 
@@ -260,14 +261,14 @@ async function discoverCategories(page: Page, store: StoreName): Promise<Scrapin
 async function extractCotoCategories(page: Page): Promise<DiscoveredCategory[]> {
     return await page.evaluate(() => {
         const categories: DiscoveredCategory[] = [];
-        
+
         // Coto usa un menú lateral con categorías
         const categoryElements = document.querySelectorAll('.menu-departamento a, .categoria-item a');
-        
+
         categoryElements.forEach((element) => {
             const name = element.textContent?.trim();
             const url = (element as HTMLAnchorElement).href;
-            
+
             if (name && url && !name.toLowerCase().includes('todo')) {
                 categories.push({
                     name,
@@ -277,7 +278,7 @@ async function extractCotoCategories(page: Page): Promise<DiscoveredCategory[]> 
                 });
             }
         });
-        
+
         return categories;
     });
 }
@@ -288,14 +289,14 @@ async function extractCotoCategories(page: Page): Promise<DiscoveredCategory[]> 
 async function extractCarrefourCategories(page: Page): Promise<DiscoveredCategory[]> {
     return await page.evaluate(() => {
         const categories: DiscoveredCategory[] = [];
-        
+
         // Carrefour VTEX usa un menú con clases específicas
         const categoryElements = document.querySelectorAll('.vtex-menu-item a, .departament-menu a');
-        
+
         categoryElements.forEach((element) => {
             const name = element.textContent?.trim();
             const url = (element as HTMLAnchorElement).href;
-            
+
             if (name && url && name.length > 2 && !name.toLowerCase().includes('inicio')) {
                 categories.push({
                     name,
@@ -305,7 +306,7 @@ async function extractCarrefourCategories(page: Page): Promise<DiscoveredCategor
                 });
             }
         });
-        
+
         return categories;
     });
 }
@@ -316,14 +317,14 @@ async function extractCarrefourCategories(page: Page): Promise<DiscoveredCategor
 async function extractJumboCategories(page: Page): Promise<DiscoveredCategory[]> {
     return await page.evaluate(() => {
         const categories: DiscoveredCategory[] = [];
-        
+
         // Jumbo usa un menú desplegable
         const categoryElements = document.querySelectorAll('.nav-item a, .category-link a');
-        
+
         categoryElements.forEach((element) => {
             const name = element.textContent?.trim();
             const url = (element as HTMLAnchorElement).href;
-            
+
             if (name && url && name.length > 2) {
                 categories.push({
                     name,
@@ -333,7 +334,7 @@ async function extractJumboCategories(page: Page): Promise<DiscoveredCategory[]>
                 });
             }
         });
-        
+
         return categories;
     });
 }
@@ -344,14 +345,14 @@ async function extractJumboCategories(page: Page): Promise<DiscoveredCategory[]>
 async function extractVeaCategories(page: Page): Promise<DiscoveredCategory[]> {
     return await page.evaluate(() => {
         const categories: DiscoveredCategory[] = [];
-        
+
         // Vea tiene un menú similar a Jumbo
         const categoryElements = document.querySelectorAll('.menu-item a, .departamento a');
-        
+
         categoryElements.forEach((element) => {
             const name = element.textContent?.trim();
             const url = (element as HTMLAnchorElement).href;
-            
+
             if (name && url && name.length > 2) {
                 categories.push({
                     name,
@@ -361,7 +362,7 @@ async function extractVeaCategories(page: Page): Promise<DiscoveredCategory[]> {
                 });
             }
         });
-        
+
         return categories;
     });
 }
@@ -372,14 +373,14 @@ async function extractVeaCategories(page: Page): Promise<DiscoveredCategory[]> {
 async function extractDiscoCategories(page: Page): Promise<DiscoveredCategory[]> {
     return await page.evaluate(() => {
         const categories: DiscoveredCategory[] = [];
-        
+
         // Disco usa VTEX también
         const categoryElements = document.querySelectorAll('.vtex-menu-item a, .menu-departamento a');
-        
+
         categoryElements.forEach((element) => {
             const name = element.textContent?.trim();
             const url = (element as HTMLAnchorElement).href;
-            
+
             if (name && url && name.length > 2) {
                 categories.push({
                     name,
@@ -389,7 +390,7 @@ async function extractDiscoCategories(page: Page): Promise<DiscoveredCategory[]>
                 });
             }
         });
-        
+
         return categories;
     });
 }
@@ -400,14 +401,14 @@ async function extractDiscoCategories(page: Page): Promise<DiscoveredCategory[]>
 async function extractDiaCategories(page: Page): Promise<DiscoveredCategory[]> {
     return await page.evaluate(() => {
         const categories: DiscoveredCategory[] = [];
-        
+
         // Día tiene un menú más simple
         const categoryElements = document.querySelectorAll('.category-item a, .nav-link a');
-        
+
         categoryElements.forEach((element) => {
             const name = element.textContent?.trim();
             const url = (element as HTMLAnchorElement).href;
-            
+
             if (name && url && name.length > 2) {
                 categories.push({
                     name,
@@ -417,7 +418,7 @@ async function extractDiaCategories(page: Page): Promise<DiscoveredCategory[]> {
                 });
             }
         });
-        
+
         return categories;
     });
 }
@@ -426,15 +427,15 @@ async function extractDiaCategories(page: Page): Promise<DiscoveredCategory[]> {
  * Rastrea una categoría específica y extrae subcategorías y marcas
  */
 async function crawlCategory(
-    page: Page, 
-    store: StoreName, 
-    categoryUrl: string, 
+    page: Page,
+    store: StoreName,
+    categoryUrl: string,
     parentPath: string[],
     scraperLogger: ScraperLogger,
     categoryMapper: CategoryMapper,
     brandExtractor: BrandExtractor
 ): Promise<ScrapingResult> {
-    
+
     await scraperLogger.logCategoryDiscoveryStart({
         store,
         url: categoryUrl,
@@ -450,7 +451,7 @@ async function crawlCategory(
 
         // Extraer subcategorías
         const rawSubcategories = await extractSubcategories(page, store);
-        
+
         // Mapear categorías con el sistema de normalización
         for (const subcategory of rawSubcategories) {
             try {
@@ -460,7 +461,7 @@ async function crawlCategory(
                     subcategory.name,
                     categoryUrl
                 );
-                
+
                 result.categories.push({
                     ...subcategory,
                     parentPath,
@@ -481,7 +482,7 @@ async function crawlCategory(
                 });
             }
         }
-        
+
         // Extraer marcas usando el BrandExtractor especializado
         const extractedBrands = await brandExtractor.extractBrands();
         result.brands = extractedBrands.map(brand => ({
@@ -499,7 +500,7 @@ async function crawlCategory(
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
         result.errors.push(`Error rastreando categoría: ${errorMessage}`);
-        
+
         await scraperLogger.handleErrorWithEvidence(
             { store, url: categoryUrl },
             page,
@@ -517,7 +518,7 @@ async function crawlCategory(
 async function extractSubcategories(page: Page, store: StoreName): Promise<DiscoveredCategory[]> {
     return await page.evaluate(() => {
         const subcategories: DiscoveredCategory[] = [];
-        
+
         // Selectores comunes para subcategorías
         const selectors = [
             '.subcategory-item a',
@@ -527,16 +528,16 @@ async function extractSubcategories(page: Page, store: StoreName): Promise<Disco
             '.facet-item a',
             '.filter-item a'
         ];
-        
+
         for (const selector of selectors) {
             const elements = document.querySelectorAll(selector);
             if (elements.length > 0) {
                 elements.forEach((element) => {
                     const name = element.textContent?.trim();
                     const url = (element as HTMLAnchorElement).href;
-                    
-                    if (name && url && 
-                        !name.toLowerCase().includes('todo') && 
+
+                    if (name && url &&
+                        !name.toLowerCase().includes('todo') &&
                         !name.match(/^\d+$/)) { // No números solos
                         subcategories.push({
                             name,
@@ -549,7 +550,7 @@ async function extractSubcategories(page: Page, store: StoreName): Promise<Disco
                 break; // Usar el primer selector que funcione
             }
         }
-        
+
         return subcategories;
     }, store);
 }
@@ -557,10 +558,10 @@ async function extractSubcategories(page: Page, store: StoreName): Promise<Disco
 /**
  * Extrae productos de una página de categoría
  */
-async function extractProductsFromPage(page: Page): Promise<Array<{title: string, url: string, price?: number}>> {
+async function extractProductsFromPage(page: Page): Promise<Array<{ title: string, url: string, price?: number }>> {
     return await page.evaluate(() => {
-        const products: Array<{title: string, url: string, price?: number}> = [];
-        
+        const products: Array<{ title: string, url: string, price?: number }> = [];
+
         // Selectores comunes para productos
         const productSelectors = [
             '.product-item',
@@ -570,7 +571,7 @@ async function extractProductsFromPage(page: Page): Promise<Array<{title: string
             '.product',
             '[data-product]'
         ];
-        
+
         for (const selector of productSelectors) {
             const elements = document.querySelectorAll(selector);
             if (elements.length > 0) {
@@ -578,12 +579,12 @@ async function extractProductsFromPage(page: Page): Promise<Array<{title: string
                     const titleElement = element.querySelector('.product-title, .product-name, .title, h3, h4');
                     const linkElement = element.querySelector('a');
                     const priceElement = element.querySelector('.price, .product-price, .precio');
-                    
+
                     const title = titleElement?.textContent?.trim();
                     const url = linkElement ? (linkElement as HTMLAnchorElement).href : '';
                     const priceText = priceElement?.textContent?.trim();
                     const price = priceText ? parseFloat(priceText.replace(/[^\d.,]/g, '').replace(',', '.')) : undefined;
-                    
+
                     if (title && url) {
                         products.push({ title, url, price });
                     }
@@ -591,7 +592,7 @@ async function extractProductsFromPage(page: Page): Promise<Array<{title: string
                 break; // Usar el primer selector que funcione
             }
         }
-        
+
         return products;
     });
 }
@@ -600,13 +601,13 @@ async function extractProductsFromPage(page: Page): Promise<Array<{title: string
  * Extrae marcas de una página de categoría específica (versión mejorada)
  */
 async function extractBrandsFromCategoryEnhanced(
-    page: Page, 
-    store: StoreName, 
+    page: Page,
+    store: StoreName,
     categoryUrl: string,
     brandExtractor: BrandExtractor,
     scraperLogger: ScraperLogger
 ): Promise<ScrapingResult> {
-    
+
     await scraperLogger.logBrandExtractionStart({
         store,
         url: categoryUrl
@@ -620,7 +621,7 @@ async function extractBrandsFromCategoryEnhanced(
 
         // Usar el BrandExtractor especializado para extraer marcas
         const extractedBrands = await brandExtractor.extractBrands();
-        
+
         result.brands = extractedBrands.map(brand => ({
             name: brand.name,
             url: brand.url,
@@ -636,7 +637,7 @@ async function extractBrandsFromCategoryEnhanced(
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
         result.errors.push(`Error extrayendo marcas: ${errorMessage}`);
-        
+
         await scraperLogger.handleErrorWithEvidence(
             { store, url: categoryUrl },
             page,
@@ -652,14 +653,14 @@ async function extractBrandsFromCategoryEnhanced(
  * Scrapea productos de una categoría con extracción de marcas desde títulos
  */
 async function scrapeProducts(
-    page: Page, 
-    store: StoreName, 
+    page: Page,
+    store: StoreName,
     categoryUrl: string,
     parentPath: string[],
     scraperLogger: ScraperLogger,
     brandMatcher: BrandMatcher
 ): Promise<ScrapingResult> {
-    
+
     await scraperLogger.logProductExtractionStart({
         store,
         url: categoryUrl
@@ -673,19 +674,19 @@ async function scrapeProducts(
 
         // Extraer productos de la página
         const products = await extractProductsFromPage(page);
-        
+
         // Procesar cada producto y extraer marca del título
         for (const product of products) {
             try {
                 const brandMatch = await brandMatcher.extractBrandFromTitle(product.title, store);
-                
+
                 if (brandMatch) {
                     await scraperLogger.logBrandMatchSuccess({
                         store,
                         productTitle: product.title,
                         brandMatch
                     });
-                    
+
                     // Agregar marca descubierta a los resultados
                     result.brands.push({
                         name: brandMatch.brandName,
@@ -723,7 +724,7 @@ async function scrapeProducts(
             brandMatcher,
             scraperLogger
         );
-        
+
         result.products = productResults.saved;
         result.updatedProducts = productResults.updated;
         result.errors.push(...productResults.errors);
@@ -731,7 +732,7 @@ async function scrapeProducts(
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
         result.errors.push(`Error scrapeando productos: ${errorMessage}`);
-        
+
         await scraperLogger.handleErrorWithEvidence(
             { store, url: categoryUrl },
             page,
@@ -747,12 +748,12 @@ async function scrapeProducts(
  * Guarda los resultados del descubrimiento en base de datos con mapeo de marcas
  */
 async function saveDiscoveryResults(
-    store: StoreName, 
-    result: ScrapingResult, 
+    store: StoreName,
+    result: ScrapingResult,
     parentPath: string[],
     scraperLogger: ScraperLogger
 ) {
-    
+
     const savedCategories: string[] = [];
     const savedBrands: string[] = [];
     const errors: string[] = [];
@@ -779,8 +780,8 @@ async function saveDiscoveryResults(
                 };
 
                 const savedCategory = await Category.findOneAndUpdate(
-                    { 
-                        'name.es': category.name, 
+                    {
+                        'name.es': category.name,
                         store: store,
                         level: category.level
                     },
@@ -790,7 +791,7 @@ async function saveDiscoveryResults(
 
                 const categoryName = typeof savedCategory.name === 'string' ? savedCategory.name : savedCategory.name.es || savedCategory.name.en || 'Unknown';
                 savedCategories.push(categoryName);
-                
+
                 await scraperLogger.logCategorySaveSuccess({
                     store,
                     categoryName: category.name,
@@ -800,7 +801,7 @@ async function saveDiscoveryResults(
             } catch (categoryError) {
                 const errorMsg = `Error guardando categoría ${category.name}: ${categoryError instanceof Error ? categoryError.message : 'Error desconocido'}`;
                 errors.push(errorMsg);
-                
+
                 await scraperLogger.logCategorySaveError({
                     store,
                     categoryName: category.name,
@@ -835,7 +836,7 @@ async function saveDiscoveryResults(
                 );
 
                 savedBrands.push(savedBrand.name);
-                
+
                 await scraperLogger.logBrandSaveSuccess({
                     store,
                     brandName: brand.name,
@@ -845,7 +846,7 @@ async function saveDiscoveryResults(
             } catch (brandError) {
                 const errorMsg = `Error guardando marca ${brand.name}: ${brandError instanceof Error ? brandError.message : 'Error desconocido'}`;
                 errors.push(errorMsg);
-                
+
                 await scraperLogger.logBrandSaveError({
                     store,
                     brandName: brand.name,
@@ -882,7 +883,7 @@ async function saveDiscoveryResults(
             module: 'SCRAPER_ENHANCED',
             error: errorMsg
         });
-        
+
         await scraperLogger.logDataPersistenceError({
             store,
             url: 'unknown',
@@ -910,11 +911,11 @@ async function processAndSaveProducts(
         try {
             // Validar el producto scrapeado
             const validationResult = validateScrapedProduct(scrapedProduct);
-            
+
             if (!validationResult.success) {
                 const errorMsg = `Error de validación: ${validationResult.error.issues.map((e: { message: string }) => e.message).join(', ')}`;
                 errors.push(errorMsg);
-                
+
                 await scraperLogger.logProductValidationError({
                     store,
                     productTitle: scrapedProduct.title,
@@ -955,10 +956,18 @@ async function processAndSaveProducts(
 
             if (!product && validatedProduct.storeProductId) {
                 // Buscar por ID del supermercado
-                product = await Product.findOne({ 
+                product = await Product.findOne({
                     'sources.store': store,
-                    'sources.storeProductId': validatedProduct.storeProductId 
+                    'sources.storeProductId': validatedProduct.storeProductId
                 });
+            }
+
+            if (!product) {
+                // Generar slug para buscar coincidencias por nombre
+                const slug = slugify(validatedProduct.title);
+
+                // Buscar por slug (nombre normalizado)
+                product = await Product.findOne({ slug: slug });
             }
 
             if (!product) {
@@ -980,6 +989,7 @@ async function processAndSaveProducts(
                     sources: [{
                         store: store,
                         storeProductId: validatedProduct.storeProductId,
+                        price: validatedProduct.price,
                         categoryPath: categoryPath,
                         originalUrl: validatedProduct.url,
                         lastScraped: validatedProduct.scrapedAt,
@@ -1007,7 +1017,7 @@ async function processAndSaveProducts(
 
                 await product.save();
                 savedProducts.push(validatedProduct.title);
-                
+
                 await scraperLogger.logProductSaveSuccess({
                     store,
                     productTitle: validatedProduct.title,
@@ -1018,7 +1028,7 @@ async function processAndSaveProducts(
                 // Actualizar producto existente
                 if (validatedProduct.ean) {
                     const existingVariant = product.findVariantByEAN(validatedProduct.ean);
-                    
+
                     if (existingVariant) {
                         // Actualizar variante existente
                         existingVariant.price = validatedProduct.price;
@@ -1058,6 +1068,7 @@ async function processAndSaveProducts(
                 await product.addOrUpdateSource({
                     store: store,
                     storeProductId: validatedProduct.storeProductId,
+                    price: validatedProduct.price,
                     categoryPath: categoryPath,
                     originalUrl: validatedProduct.url,
                     lastScraped: validatedProduct.scrapedAt,
@@ -1071,7 +1082,7 @@ async function processAndSaveProducts(
                 );
 
                 updatedProducts.push(validatedProduct.title);
-                
+
                 await scraperLogger.logProductSaveSuccess({
                     store,
                     productTitle: validatedProduct.title,
@@ -1083,7 +1094,7 @@ async function processAndSaveProducts(
         } catch (error) {
             const errorMsg = `Error procesando producto: ${error instanceof Error ? error.message : 'Error desconocido'}`;
             errors.push(errorMsg);
-            
+
             await scraperLogger.logProductProcessingError({
                 store,
                 productTitle: scrapedProduct.title,

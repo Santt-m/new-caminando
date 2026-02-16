@@ -45,7 +45,7 @@ export class DiscoHomeScraper extends BaseScraper {
         await this.processCategoryTree(nodes, null, queue, '');
     }
 
-    private async processCategoryTree(nodes: any[], parentId: any | null, queue: any, idPath: string): Promise<void> {
+    private async processCategoryTree(nodes: any[], parentId: any | null, queue: any, idPath: string = ''): Promise<void> {
         for (const node of nodes) {
             try {
                 const currentIdPath = idPath ? `${idPath}/${node.id}` : `${node.id}`;

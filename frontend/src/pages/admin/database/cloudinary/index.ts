@@ -1,1 +1,1 @@
-export { CloudinaryDashboard } from './CloudinaryDashboard';
+export { CloudinaryDashboard } from './dashboard/CloudinaryDashboard';

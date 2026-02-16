@@ -10,10 +10,18 @@ import { traducciones } from '../traduccion';
 
 interface ProductCardProps {
     product: Product;
+    onClick?: (e: React.MouseEvent) => void;
 }
 
-export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
+export const ProductCard: React.FC<ProductCardProps> = ({ product, onClick }) => {
     const { t } = useLanguage();
+
+    const handleClick = (e: React.MouseEvent) => {
+        if (onClick) {
+            e.preventDefault();
+            onClick(e);
+        }
+    };
 
     const getName = (name: any): string => {
         if (typeof name === 'string') return name;
@@ -53,9 +61,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
             </div>
 
             {/* Image */}
-            <Link to={`/productos/${product.slug}`} className="block relative aspect-square overflow-hidden bg-muted">
+            <Link
+                to={`/productos/${product.slug}`}
+                onClick={handleClick}
+                className="block relative aspect-square overflow-hidden bg-muted"
+            >
                 <img
-                    src={product.images[0] || '/placeholder-product.png'}
+                    src={product.images?.[0] || product.imageUrl || '/placeholder-product.png'}
                     alt={getName(product.name)}
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                 />
@@ -80,6 +92,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
 
                 <Link
                     to={`/productos/${product.slug}`}
+                    onClick={handleClick}
                     className="block group-hover:text-primary transition-colors mb-3"
                 >
                     <h3 className="font-bold text-lg leading-tight line-clamp-2 min-h-[3rem]">
@@ -112,7 +125,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                             asChild
                             className="w-full font-black rounded-2xl shadow-xl shadow-primary/20 hover:shadow-2xl hover:shadow-primary/30 active:scale-95 transition-all gap-2"
                         >
-                            <Link to={`/productos/${product.slug}`}>
+                            <Link to={`/productos/${product.slug}`} onClick={handleClick}>
                                 <Info className="h-5 w-5" />
                                 {t(traducciones, 'details')}
                             </Link>

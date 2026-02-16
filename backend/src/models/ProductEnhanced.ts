@@ -44,6 +44,7 @@ export interface ProductOption {
 export interface ProductSource {
     store: StoreName;
     storeProductId?: string;
+    price?: number;
     categoryPath: string[];
     originalUrl?: string;
     lastScraped?: Date;
@@ -273,6 +274,7 @@ const ProductSourceSchema = new Schema<ProductSource>({
         enum: Object.values(StoreName)
     },
     storeProductId: { type: String },
+    price: { type: Number }, // Price at this source
     categoryPath: [{ type: String }],
     originalUrl: { type: String },
     lastScraped: { type: Date, default: Date.now },

@@ -30,12 +30,20 @@ import {
     SheetTitle,
     SheetTrigger,
 } from "@/components/ui/sheet";
+import {
+    Dialog,
+    DialogContent,
+} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { ProductDetailContent } from './components/ProductDetailContent';
+import type { Product } from '@/types/ecommerce';
 
 export const ProductsPage: React.FC = () => {
     const { t } = useLanguage();
     const [searchParams, setSearchParams] = useSearchParams();
     const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+    const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
 
     // Derived State from URL
     const activeFilters = useMemo(() => {
@@ -65,6 +73,7 @@ export const ProductsPage: React.FC = () => {
             subcategory: activeFilters.subcategory,
             search: activeFilters.search
         }),
+        placeholderData: (prev) => prev, // PREVENTS UI FLASHING ON RELOAD
     });
 
     // Separate query for Brands to handle pagination
@@ -135,6 +144,15 @@ export const ProductsPage: React.FC = () => {
 
     const handleClearFilters = () => {
         setSearchParams({});
+    };
+
+    const handleProductClick = (e: React.MouseEvent, product: Product) => {
+        // Prevent default link behavior if we want to open modal
+        e.preventDefault();
+        setSelectedProduct(product);
+        setIsModalOpen(true);
+        // Update URL partially without navigation? No, keep it simple for now. 
+        // User requested "modal" so they don't leave the page.
     };
 
     const activeFilterCount = useMemo(() => {
@@ -267,8 +285,10 @@ export const ProductsPage: React.FC = () => {
                         ) : (
                             <div className="space-y-12 pb-20">
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 animate-in fade-in zoom-in-95 duration-700">
-                                    {productsResult.data.products.map((product: any) => (
-                                        <ProductCard key={product._id} product={product} />
+                                    {productsResult.data.products.map((product: Product) => (
+                                        <div key={product._id}>
+                                            <ProductCard product={product} onClick={(e) => handleProductClick(e, product)} />
+                                        </div>
                                     ))}
                                 </div>
 
@@ -307,6 +327,15 @@ export const ProductsPage: React.FC = () => {
                     </div>
                 </main>
             </div>
+
+            {/* Product Detail Modal */}
+            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+                <DialogContent className="max-w-4xl p-6 rounded-3xl overflow-hidden max-h-[90vh]">
+                    {selectedProduct && (
+                        <ProductDetailContent product={selectedProduct} isModal={true} />
+                    )}
+                </DialogContent>
+            </Dialog>
         </PublicLayout>
     );
 };

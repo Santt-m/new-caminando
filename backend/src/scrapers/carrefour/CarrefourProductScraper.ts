@@ -80,9 +80,11 @@ export class CarrefourProductScraper extends BaseScraper {
 
     async process(data: any): Promise<void> {
         if (!this.page) throw new Error('Page not initialized');
-        const { externalId, categoryId } = data;
+        const { externalId, categoryId, idPath } = data;
 
-        logger.info(`[${this.name}] Fetching products for Category ID ${externalId}...`, { module: 'SCRAPER_NODE' });
+        const effectiveId = idPath || externalId;
+
+        logger.info(`[${this.name}] Fetching products for Category ID ${effectiveId}...`, { module: 'SCRAPER_NODE' });
 
         // Go to home to ensure session
         await this.page.goto('https://www.carrefour.com.ar/', { waitUntil: 'domcontentloaded' });
@@ -94,7 +96,7 @@ export class CarrefourProductScraper extends BaseScraper {
 
         while (hasMore) {
             const rangeTo = from + to;
-            const apiUrl = `/api/catalog_system/pub/products/search?fq=C:${externalId}&_from=${from}&_to=${rangeTo}`;
+            const apiUrl = `/api/catalog_system/pub/products/search?fq=C:${effectiveId}&_from=${from}&_to=${rangeTo}`;
 
             const products: VTEXProduct[] = await this.page.evaluate(async (url) => {
                 try {

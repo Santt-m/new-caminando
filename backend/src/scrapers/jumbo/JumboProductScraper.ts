@@ -1,6 +1,6 @@
 
 import { BaseScraper } from '../BaseScraper.js';
-import { Product as ProductEnhanced, ProductVariant } from '../../models/ProductEnhanced.js';
+import { Product, ProductVariant } from '../../models/Product.js';
 import { Brand } from '../../models/Brand.js';
 import logger from '../../utils/logger.js';
 import { StoreName } from '../../config/bullmq/QueueConfig.js';
@@ -175,21 +175,21 @@ export class JumboProductScraper extends BaseScraper {
                     // Upsert Product Logic
                     const productSlug = slugify(productName) + '-' + productId;
 
-                    let productDoc = await ProductEnhanced.findOne({
+                    let productDoc = await Product.findOne({
                         'sources.storeProductId': productId,
                         'sources.store': StoreName.JUMBO
                     });
 
                     if (!productDoc) {
-                        productDoc = await ProductEnhanced.findOne({ slug: productSlug });
+                        productDoc = await Product.findOne({ slug: productSlug });
                     }
 
                     if (!productDoc && mainItem.ean) {
-                        productDoc = await ProductEnhanced.findOne({ ean: mainItem.ean });
+                        productDoc = await Product.findOne({ ean: mainItem.ean });
                     }
 
                     if (!productDoc) {
-                        productDoc = new ProductEnhanced({
+                        productDoc = new Product({
                             name: productName,
                             slug: productSlug,
                             brand: brandId,

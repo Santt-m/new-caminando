@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Star, Info } from 'lucide-react';
+import { Star, Info, TrendingDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -52,6 +52,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onClick }) =>
                         -{discountPercentage}%
                     </Badge>
                 )}
+                {product.sources && product.sources.length > 1 && (
+                    <Badge variant="outline" className="flex items-center gap-1 bg-white/90 backdrop-blur-sm border-primary/20 text-primary font-black py-1">
+                        <TrendingDown className="h-3 w-3" />
+                        {product.sources.length} {product.sources.length === 1 ? 'precio' : 'precios'}
+                    </Badge>
+                )}
                 {product.featured && (
                     <Badge variant="warning" className="flex items-center gap-1">
                         <Star className="h-3 w-3 fill-current" />
@@ -64,20 +70,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onClick }) =>
             <Link
                 to={`/productos/${product.slug}`}
                 onClick={handleClick}
-                className="block relative aspect-square overflow-hidden bg-muted"
+                className="block relative aspect-square overflow-hidden bg-white"
             >
                 <img
                     src={product.images?.[0] || product.imageUrl || '/placeholder-product.png'}
                     alt={getName(product.name)}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    className="w-full h-full object-cover transition-transform duration-500"
                 />
-                {product.stock <= 0 && (
-                    <div className="absolute inset-0 bg-background/80 flex items-center justify-center p-4">
-                        <Badge variant="outline" className="text-sm font-semibold py-1 px-3">
-                            {t(traducciones, 'outOfStock')}
-                        </Badge>
-                    </div>
-                )}
             </Link>
 
             {/* Content */}

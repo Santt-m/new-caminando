@@ -6,7 +6,7 @@ import { success } from '../../utils/response.js';
 import { Activity } from '../../models/Activity.js';
 import { ScraperConfig } from '../../models/ScraperConfig.js';
 import { StoreName } from '../../config/bullmq/QueueConfig.js';
-import { Product } from '../../models/ProductEnhanced.js';
+import { Product } from '../../models/Product.js';
 
 /**
  * Scraper Controller para el Panel de Administración
@@ -143,7 +143,7 @@ export const ScraperController = {
         console.log(`[Scraper] Iniciando descubrimiento de categorías para: ${scraperId}`);
 
         const queue = QueueFactory.getQueue('scraper-tasks');
-        await queue.add(`DISCOVER_${scraperId.toUpperCase()}`, {
+        await queue.add('DISCOVER_CATEGORIES', {
             store: scraperId,
             action: 'discover-categories'
         }, {

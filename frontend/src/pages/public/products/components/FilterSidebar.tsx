@@ -4,8 +4,10 @@ import {
     RotateCcw,
     ChevronDown,
     ChevronRight,
-    Search
+    Search,
+    DollarSign
 } from 'lucide-react';
+import { Slider } from "@/components/ui/slider";
 import {
     Accordion,
     AccordionContent,
@@ -239,28 +241,51 @@ export const FilterSidebar: React.FC<FilterSidebarProps> = ({
                         <AccordionTrigger className="hover:no-underline py-4 font-black uppercase text-xs tracking-widest text-muted-foreground">
                             {t(traducciones, 'priceRange')}
                         </AccordionTrigger>
-                        <AccordionContent className="pb-6">
-                            <div className="flex items-center gap-4 pt-2">
-                                <div className="flex-1 space-y-2 text-center">
-                                    <Label className="text-[10px] font-black uppercase tracking-tighter opacity-50">Min</Label>
+                        <AccordionContent className="pb-8 px-2">
+                            <div className="space-y-6">
+                                <div className="flex items-center justify-between px-1">
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] font-black uppercase opacity-40">Min</span>
+                                        <span className="text-sm font-black text-primary">${(activeFilters.minPrice || filters.priceRange.min).toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex flex-col text-right">
+                                        <span className="text-[10px] font-black uppercase opacity-40">Max</span>
+                                        <span className="text-sm font-black text-primary">${(activeFilters.maxPrice || filters.priceRange.max).toLocaleString()}</span>
+                                    </div>
+                                </div>
+
+                                <Slider
+                                    defaultValue={[filters.priceRange.min, filters.priceRange.max]}
+                                    max={filters.priceRange.max}
+                                    min={filters.priceRange.min}
+                                    step={10}
+                                    value={[
+                                        activeFilters.minPrice || filters.priceRange.min,
+                                        activeFilters.maxPrice || filters.priceRange.max
+                                    ]}
+                                    onValueChange={([min, max]) => {
+                                        onFilterChange({ ...activeFilters, minPrice: min, maxPrice: max });
+                                    }}
+                                    className="py-4"
+                                />
+
+                                <div className="grid grid-cols-2 gap-3 pt-2">
                                     <div className="relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold opacity-30">$</span>
+                                        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 opacity-30" />
                                         <Input
                                             type="number"
-                                            className="h-10 text-center bg-background border-none rounded-xl font-bold text-sm shadow-inner pl-6"
+                                            className="h-10 pl-8 bg-background border-none rounded-xl font-bold text-xs shadow-inner"
+                                            placeholder="Min"
                                             value={activeFilters.minPrice || ''}
                                             onChange={(e) => onFilterChange({ ...activeFilters, minPrice: parseInt(e.target.value) || undefined })}
                                         />
                                     </div>
-                                </div>
-                                <div className="pt-6 font-bold opacity-20">-</div>
-                                <div className="flex-1 space-y-2 text-center">
-                                    <Label className="text-[10px] font-black uppercase tracking-tighter opacity-50">Max</Label>
                                     <div className="relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold opacity-30">$</span>
+                                        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 opacity-30" />
                                         <Input
                                             type="number"
-                                            className="h-10 text-center bg-background border-none rounded-xl font-bold text-sm shadow-inner pl-6"
+                                            className="h-10 pl-8 bg-background border-none rounded-xl font-bold text-xs shadow-inner"
+                                            placeholder="Max"
                                             value={activeFilters.maxPrice || ''}
                                             onChange={(e) => onFilterChange({ ...activeFilters, maxPrice: parseInt(e.target.value) || undefined })}
                                         />

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { requireAdmin } from '../../middlewares/auth.js';
-import { Product, type ProductVariant } from '../../models/ProductEnhanced.js';
+import { Product, type ProductVariant } from '../../models/Product.js';
 import { success, error, ok } from '../../utils/response.js';
 
 export const adminProductsRouter = Router();

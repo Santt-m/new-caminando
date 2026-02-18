@@ -1,6 +1,6 @@
 
 import { BaseScraper } from '../BaseScraper.js';
-import { Product as ProductEnhanced, ProductVariant } from '../../models/ProductEnhanced.js';
+import { Product, ProductVariant } from '../../models/Product.js';
 import { Brand } from '../../models/Brand.js';
 import logger from '../../utils/logger.js';
 import { StoreName } from '../../config/bullmq/QueueConfig.js';
@@ -177,46 +177,73 @@ export class CarrefourProductScraper extends BaseScraper {
                     }
 
                     // Upsert Product Logic
-                    const productSlug = slugify(productName) + '-' + productId;
+                    let productDoc = null;
 
-                    // Try to find by StoreProductID (most reliable for re-scraping)
-                    let productDoc = await ProductEnhanced.findOne({
-                        'sources.storeProductId': productId,
-                        'sources.store': StoreName.CARREFOUR
-                    });
+                    // 1. PRIORIDAD: Buscar por EAN (Vínculo global para comparación de precios)
+                    if (mainItem.ean) {
+                        productDoc = await Product.findOne({
+                            $or: [
+                                { ean: mainItem.ean },
+                                { 'variants.ean': mainItem.ean }
+                            ]
+                        });
 
-                    // Fallback: match by Slug
-                    if (!productDoc) {
-                        productDoc = await ProductEnhanced.findOne({ slug: productSlug });
+                        if (productDoc) {
+                            logger.info(`[${this.name}] Linked product by EAN: ${productName} (${mainItem.ean})`, { module: 'SCRAPER_NODE' });
+                        }
                     }
 
-                    // Fallback: match by EAN (if global product exists)
-                    if (!productDoc && mainItem.ean) {
-                        productDoc = await ProductEnhanced.findOne({ ean: mainItem.ean });
+                    // 2. SEGUNDA OPCION: Buscar por StoreProductID (Misma tienda)
+                    if (!productDoc) {
+                        productDoc = await Product.findOne({
+                            'sources.storeProductId': productId,
+                            'sources.store': StoreName.CARREFOUR
+                        });
                     }
 
+                    // 3. TERCERA OPCION: Si no existe, crear uno nuevo
                     if (!productDoc) {
-                        productDoc = new ProductEnhanced({
+                        const productSlug = slugify(productName) + '-' + productId;
+                        productDoc = new Product({
                             name: productName,
                             slug: productSlug,
                             brand: brandId,
                             category: categoryId,
                             sources: []
                         });
+                        logger.info(`[${this.name}] Creating new product: ${productName}`, { module: 'SCRAPER_NODE' });
                     }
 
                     // Update fields
+                    // Si el producto ya tiene nombre y fue vinculado por EAN, no lo sobrescribimos totalmente 
+                    // para preservar el nombre "maestro" si existiera, pero aquí actualizamos si es necesario.
                     productDoc.name = productName;
-                    productDoc.price = price;
-                    productDoc.available = available;
-                    productDoc.imageUrl = imageUrl;
-                    productDoc.variants = variants; // Update all variants
-                    productDoc.sku = mainItem.itemId; // Main SKU
-                    productDoc.ean = mainEan; // Main EAN
-                    if (brandId) productDoc.brand = brandId;
+
+                    // Actualizamos el precio principal si el nuevo precio es menor o si el actual es 0
+                    if (productDoc.price === 0 || price < productDoc.price || !productDoc.price) {
+                        productDoc.price = price;
+                    }
+
+                    productDoc.available = available || productDoc.available; // Si está disponible en una tienda, se considera disponible
+                    if (imageUrl && !productDoc.imageUrl) productDoc.imageUrl = imageUrl;
+
+                    // Manejo de variantes: Actualizar si el EAN ya existe, o agregar si es nuevo
+                    if (!productDoc.variants) productDoc.variants = [];
+                    for (const v of variants) {
+                        const vIndex = productDoc.variants.findIndex(pv => pv.ean === v.ean);
+                        if (vIndex > -1) {
+                            productDoc.variants[vIndex] = { ...productDoc.variants[vIndex], ...v };
+                        } else {
+                            productDoc.variants.push(v);
+                        }
+                    }
+
+                    productDoc.sku = mainItem.itemId; // Referencia local
+                    if (!productDoc.ean) productDoc.ean = mainEan;
+                    if (brandId && !productDoc.brand) productDoc.brand = brandId;
 
                     // Update Source Information
-                    const sourceIndex = productDoc.sources.findIndex((s: any) => s.store === StoreName.CARREFOUR && s.storeProductId === productId);
+                    const sourceIndex = productDoc.sources.findIndex((s: any) => s.store === StoreName.CARREFOUR);
                     const sourceData = {
                         store: StoreName.CARREFOUR,
                         storeProductId: productId,
@@ -228,10 +255,8 @@ export class CarrefourProductScraper extends BaseScraper {
                     };
 
                     if (sourceIndex > -1) {
-                        // Update existing source
                         productDoc.sources[sourceIndex] = { ...productDoc.sources[sourceIndex], ...sourceData };
                     } else {
-                        // Add new source
                         productDoc.sources.push(sourceData as any);
                     }
 

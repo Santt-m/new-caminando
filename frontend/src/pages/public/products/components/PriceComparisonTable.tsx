@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { ExternalLink, ShoppingCart, TrendingDown } from 'lucide-react';
+import { ExternalLink, TrendingDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -54,10 +54,6 @@ export const PriceComparisonTable: React.FC<PriceComparisonTableProps> = ({ sour
 
     return (
         <div className="space-y-4">
-            <div className="flex items-center gap-2">
-                <ShoppingCart className="h-5 w-5 text-primary" />
-                <h3 className="text-lg font-bold">Comparativa de Precios</h3>
-            </div>
 
             <div className="space-y-3">
                 {sortedSources.map((source, idx) => {

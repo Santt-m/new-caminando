@@ -5,7 +5,7 @@
 
 import { Router } from 'express';
 import { asyncHandler } from '../utils/asyncHandler.js';
-import { Product, type ProductDocument, type ProductVariant } from '../models/ProductEnhanced.js';
+import { Product, type ProductDocument, type ProductVariant } from '../models/Product.js';
 import { validateEAN, formatEAN, extractEANFromText } from '../shared/utils/EANUtils.js';
 import { authenticateAdmin } from '../middlewares/auth.js';
 

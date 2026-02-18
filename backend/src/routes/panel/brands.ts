@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { requireAdmin } from '../../middlewares/auth.js';
 import { Brand } from '../../models/Brand.js';
-import { Product } from '../../models/ProductEnhanced.js';
+import { Product } from '../../models/Product.js';
 
 
 export const adminBrandsRouter = Router();

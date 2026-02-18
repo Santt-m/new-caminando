@@ -1,9 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
     Star,
-    Truck,
-    ShieldCheck,
-    MessageCircle,
     Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -22,7 +19,7 @@ interface ProductDetailContentProps {
 }
 
 export const ProductDetailContent: React.FC<ProductDetailContentProps> = ({ product, isModal = false }) => {
-    const { t, language } = useLanguage();
+    const { t } = useLanguage();
     const [selectedAttributes, setSelectedAttributes] = useState<Record<string, string>>({});
     const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
     const [mainImage, setMainImage] = useState<string>('');
@@ -87,9 +84,6 @@ export const ProductDetailContent: React.FC<ProductDetailContentProps> = ({ prod
     };
 
     const currentPrice = selectedVariant?.price ?? product.price;
-    const currentStock = selectedVariant?.stock ?? product.stock ?? 0;
-    const currentSku = selectedVariant?.sku ?? product.sku;
-    const isAvailable = selectedVariant ? (selectedVariant.available !== false) : product.available;
     const hasDiscount = product.discountPrice && product.discountPrice < product.price;
 
     const allImages = [
@@ -110,11 +104,11 @@ export const ProductDetailContent: React.FC<ProductDetailContentProps> = ({ prod
             {/* Left: Images */}
             <div className={cn("space-y-6", isModal ? "" : "lg:col-span-7")}>
                 <div className="relative group">
-                    <Card className="overflow-hidden aspect-square border-none shadow-2xl bg-muted/30">
+                    <Card className="overflow-hidden aspect-square border-none shadow-2xl bg-white">
                         <img
                             src={displayImage}
                             alt={getName(product.name)}
-                            className="w-full h-full object-contain p-4 transition-transform duration-700 group-hover:scale-105 mix-blend-multiply"
+                            className="w-full h-full object-contain p-4 transition-transform duration-700"
                         />
                     </Card>
                     {hasDiscount && (
@@ -131,7 +125,7 @@ export const ProductDetailContent: React.FC<ProductDetailContentProps> = ({ prod
                 </div>
 
                 {allImages.length > 1 && (
-                    <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar snap-x">
+                    <div className="flex items-center gap-4 overflow-x-auto pb-2 mb-4 custom-scrollbar snap-x flex-nowrap min-w-full">
                         {allImages.map((img, idx) => (
                             <button
                                 key={idx}
@@ -159,7 +153,7 @@ export const ProductDetailContent: React.FC<ProductDetailContentProps> = ({ prod
             </div>
 
             {/* Right: Details */}
-            <div className={cn("space-y-6", isModal ? "max-h-[80vh] overflow-y-auto px-1" : "lg:col-span-5 lg:space-y-8")}>
+            <div className={cn("space-y-6", isModal ? "px-1" : "lg:col-span-5 lg:space-y-8")}>
                 <div className="space-y-3">
                     {product.brand && (
                         <Badge variant="secondary" className="px-3 py-1 text-xs font-bold uppercase tracking-widest text-primary/80 bg-primary/5">
@@ -169,14 +163,6 @@ export const ProductDetailContent: React.FC<ProductDetailContentProps> = ({ prod
                     <h1 className={cn("font-black tracking-tighter leading-[0.9] text-foreground", isModal ? "text-2xl md:text-3xl lg:text-3xl" : "text-4xl md:text-5xl")}>
                         {getName(product.name)}
                     </h1>
-                    <div className="flex items-center gap-4">
-                        <div className="flex items-center text-yellow-500">
-                            {[1, 2, 3, 4, 5].map(i => (
-                                <Star key={i} className="h-4 w-4 fill-current" />
-                            ))}
-                            <span className="ml-2 text-sm text-muted-foreground font-medium">(4.8)</span>
-                        </div>
-                    </div>
 
                     <div className="flex items-baseline gap-3 pt-2">
                         <span className="text-4xl lg:text-5xl font-black text-primary tracking-tighter">
@@ -185,9 +171,6 @@ export const ProductDetailContent: React.FC<ProductDetailContentProps> = ({ prod
                         <span className="text-xl text-muted-foreground font-medium">{product.currency || 'USD'}</span>
                     </div>
 
-                    {currentSku && (
-                        <p className="text-xs font-mono text-muted-foreground uppercase opacity-60">SKU: {currentSku}</p>
-                    )}
                 </div>
 
                 <Separator />
@@ -232,58 +215,7 @@ export const ProductDetailContent: React.FC<ProductDetailContentProps> = ({ prod
                     </div>
                 )}
 
-                {/* Stock & Quantity */}
-                <div className="space-y-4 pt-2">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            {isAvailable && currentStock > 0 ? (
-                                <div className="flex items-center gap-1.5 text-green-600 font-bold text-sm bg-green-50 px-3 py-1 rounded-full">
-                                    <div className="h-2 w-2 rounded-full bg-green-600 animate-pulse" />
-                                    {currentStock} disponibles
-                                </div>
-                            ) : (
-                                <Badge variant="destructive" className="font-bold">Sin stock</Badge>
-                            )}
-                        </div>
-                    </div>
 
-                    <div className="flex flex-col gap-3">
-                        <Button
-                            size="lg"
-                            className="w-full h-12 lg:h-14 rounded-2xl font-black text-lg shadow-xl shadow-green-500/20 hover:shadow-2xl hover:shadow-green-500/30 active:scale-[0.98] transition-all bg-green-600 hover:bg-green-700 text-white"
-                            asChild
-                        >
-                            <a
-                                href={`https://wa.me/5491112345678?text=${encodeURIComponent(
-                                    `Hola! Me interesa este producto: ${getName(product.name)} (SKU: ${product.sku})`
-                                )}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                            >
-                                <MessageCircle className="h-5 w-5 lg:h-6 lg:w-6 mr-3" />
-                                {language === 'es' ? 'Consultar disponibilidad' : 'Check availability'}
-                            </a>
-                        </Button>
-                    </div>
-                </div>
-
-                {/* Trust Badges - Only if space permits or full page */}
-                <div className="grid grid-cols-2 gap-3 pt-4">
-                    <Card className="p-3 flex items-center gap-3 bg-muted/20 border-none shadow-none rounded-xl">
-                        <Truck className="h-4 w-4 text-primary" />
-                        <div className="text-[10px] leading-tight font-bold uppercase tracking-tighter">
-                            <p className="text-foreground">Envío Rápido</p>
-                            <p className="text-muted-foreground font-normal">En 24/48 horas</p>
-                        </div>
-                    </Card>
-                    <Card className="p-3 flex items-center gap-3 bg-muted/20 border-none shadow-none rounded-xl">
-                        <ShieldCheck className="h-4 w-4 text-primary" />
-                        <div className="text-[10px] leading-tight font-bold uppercase tracking-tighter">
-                            <p className="text-foreground">Pago Seguro</p>
-                            <p className="text-muted-foreground font-normal">Encriptación SSL</p>
-                        </div>
-                    </Card>
-                </div>
 
                 {/* Mobile Description (in Modal too if needed) */}
                 <div className={cn("block space-y-4 pt-6 border-t", isModal ? "lg:hidden" : "lg:hidden")}>

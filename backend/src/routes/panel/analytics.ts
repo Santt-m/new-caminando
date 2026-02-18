@@ -7,7 +7,7 @@ import { Ticket } from '../../models/Ticket.js';
 import { Activity } from '../../models/Activity.js';
 import { Session } from '../../models/Session.js';
 import { IPRule } from '../../models/IPRule.js';
-import { Product } from '../../models/ProductEnhanced.js';
+import { Product } from '../../models/Product.js';
 import { redisClient } from '../../config/redis.js';
 
 export const adminAnalyticsRouter = Router();

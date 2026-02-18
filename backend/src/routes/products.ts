@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { asyncHandler } from '../utils/asyncHandler.js';
-import { Product } from '../models/ProductEnhanced.js';
+import { Product } from '../models/Product.js';
 import { Category } from '../models/Category.js';
 import { Brand } from '../models/Brand.js';
 import { AttributeDefinition } from '../models/AttributeDefinition.js';
@@ -17,17 +17,97 @@ productsRouter.get(
     asyncHandler(async (req, res) => {
         const { category, subcategory, brand, search } = req.query;
 
-        // Construir el filtro base para los conteos y rangos
+        // 1. Obtener todas las categorías
+        const allCategories = await Category.find({ active: true }).lean();
+
+        // Helper para obtener el nombre localizado
+        const getNameStr = (name: any) => {
+            if (typeof name === 'string') return name;
+            return name?.es || name?.en || 'Categoría';
+        };
+
+        // 2. Obtener conteos de productos por categoría (contando tanto en 'category' como en 'subcategories')
+        const categoryCounts = await Product.aggregate([
+            { $match: { available: true } },
+            {
+                $project: {
+                    allCats: {
+                        $setUnion: [
+                            ['$category'],
+                            { $ifNull: ['$subcategories', []] }
+                        ]
+                    }
+                }
+            },
+            { $unwind: '$allCats' },
+            { $group: { _id: '$allCats', count: { $sum: 1 } } }
+        ]);
+
+        const directCountMap = new Map();
+        categoryCounts.forEach(c => {
+            if (c._id) directCountMap.set(c._id.toString(), c.count);
+        });
+
+        // 3. Función recursiva para construir el árbol y calcular conteos totales
+        const buildTree = (parentId: string | null = null, visited = new Set<string>()): any[] => {
+            return allCategories
+                .filter(c => {
+                    if (parentId === null) return !c.parentCategory;
+                    return c.parentCategory?.toString() === parentId;
+                })
+                .sort((a, b) => (a.order || 0) - (b.order || 0) || getNameStr(a.name).localeCompare(getNameStr(b.name)))
+                .map(cat => {
+                    const catId = cat._id.toString();
+                    if (visited.has(catId)) {
+                        console.error(`Circular reference detected in category tree at ID: ${catId}`);
+                        return null;
+                    }
+                    const newVisited = new Set(visited);
+                    newVisited.add(catId);
+
+                    const subTree = buildTree(catId, newVisited).filter(Boolean);
+                    const directCount = directCountMap.get(catId) || 0;
+
+                    // IMPORTANTE: En este sistema, si un producto está en una subcategoría, 
+                    // a veces NO está marcado en la categoría padre.
+                    // Pero queremos que el padre muestre el total de la rama.
+                    const subTotal = subTree.reduce((acc, sub) => acc + sub.count, 0);
+                    const totalCount = directCount + subTotal;
+
+                    return {
+                        _id: cat._id,
+                        name: cat.name,
+                        slug: cat.slug,
+                        count: totalCount,
+                        subcategories: subTree
+                    };
+                })
+                .filter(Boolean);
+        };
+
+        const categoriesTree = buildTree();
+
+        // 4. Filtrado base para el resto de los filtros (marcas, precios, atributos)
         const baseQuery: Record<string, unknown> = { available: true };
 
-        if (category) {
-            const cat = await Category.findOne({ slug: category as string, active: true });
-            if (cat) baseQuery.category = cat._id;
-        }
+        // Helper para obtener todos los IDs de una rama (recursivo)
+        const getBranchIds = (parentSlug: string) => {
+            const getChildrenIds = (parentId: string, visited = new Set<string>()): string[] => {
+                if (visited.has(parentId)) return [];
+                visited.add(parentId);
+                const children = allCategories.filter(c => c.parentCategory?.toString() === parentId);
+                return [parentId, ...children.flatMap(c => getChildrenIds(c._id.toString(), new Set(visited)))];
+            };
+            const parent = allCategories.find(c => c.slug === parentSlug);
+            return parent ? getChildrenIds(parent._id.toString()) : [];
+        };
 
         if (subcategory) {
-            const subcat = await Category.findOne({ slug: subcategory as string, active: true });
-            if (subcat) baseQuery.subcategories = subcat._id;
+            const branchIds = getBranchIds(subcategory as string);
+            if (branchIds.length > 0) baseQuery.$or = [{ category: { $in: branchIds } }, { subcategories: { $in: branchIds } }];
+        } else if (category) {
+            const branchIds = getBranchIds(category as string);
+            if (branchIds.length > 0) baseQuery.$or = [{ category: { $in: branchIds } }, { subcategories: { $in: branchIds } }];
         }
 
         if (brand) {
@@ -40,84 +120,21 @@ productsRouter.get(
             baseQuery.$text = { $search: search as string };
         }
 
-        // 1. Obtener categorías principales con subcategorías y conteo de productos
-        // Las categorías siempre se muestran todas las activas, pero el conteo es sensible al filtro base
-        // (Aunque normalmente las categorías no deberían filtrarse a sí mismas para permitir navegación)
-        const categoriesAgg = await Category.aggregate([
-            { $match: { active: true, parentCategory: null } },
-            { $sort: { order: 1, name: 1 } },
-            {
-                $lookup: {
-                    from: 'products',
-                    let: { categoryId: '$_id' },
-                    pipeline: [
-                        { $match: { $expr: { $and: [{ $eq: ['$category', '$$categoryId'] }, { $eq: ['$available', true] }] } } },
-                        { $count: 'total' },
-                    ],
-                    as: 'productCount',
-                },
-            },
-            {
-                $lookup: {
-                    from: 'categories',
-                    let: { parentId: '$_id' },
-                    pipeline: [
-                        { $match: { $expr: { $and: [{ $eq: ['$parentCategory', '$$parentId'] }, { $eq: ['$active', true] }] } } },
-                        { $sort: { order: 1, name: 1 } },
-                        {
-                            $lookup: {
-                                from: 'products',
-                                let: { subcatId: '$_id' },
-                                pipeline: [
-                                    {
-                                        $match: {
-                                            $expr: {
-                                                $and: [{ $in: ['$$subcatId', '$subcategories'] }, { $eq: ['$available', true] }],
-                                            },
-                                        },
-                                    },
-                                    { $count: 'total' },
-                                ],
-                                as: 'productCount',
-                            },
-                        },
-                        {
-                            $project: {
-                                name: 1,
-                                slug: 1,
-                                count: { $ifNull: [{ $arrayElemAt: ['$productCount.total', 0] }, 0] },
-                            },
-                        },
-                    ],
-                    as: 'subcategories',
-                },
-            },
-            {
-                $project: {
-                    name: 1,
-                    slug: 1,
-                    count: { $ifNull: [{ $arrayElemAt: ['$productCount.total', 0] }, 0] },
-                    subcategories: 1,
-                },
-            },
-        ]);
-
-        // 2. Obtener marcas con conteo de productos filtrado
-        const brandsPage = parseInt(req.query.brandsPage as string) || 1;
-        const brandsLimit = 20; // Aumentamos límite para filtros
-        const brandsSkip = (brandsPage - 1) * brandsLimit;
+        // 5. Marcas
+        const brandBaseQuery = { ...baseQuery };
+        delete brandBaseQuery.brand;
 
         const brandsAgg = await Brand.aggregate([
             { $match: { active: true } },
             {
                 $lookup: {
                     from: 'products',
-                    let: { brandId: '$_id' },
+                    let: { bId: '$_id' },
                     pipeline: [
                         {
                             $match: {
-                                ...baseQuery,
-                                $expr: { $eq: ['$brand', '$$brandId'] }
+                                ...brandBaseQuery,
+                                $expr: { $eq: ['$brand', '$$bId'] }
                             }
                         },
                         { $count: 'total' },
@@ -133,14 +150,16 @@ productsRouter.get(
                     count: { $ifNull: [{ $arrayElemAt: ['$productCount.total', 0] }, 0] },
                 },
             },
-            { $match: { count: { $gt: 0 } } }, // Solo marcas con productos en esta selección
             { $sort: { name: 1 } },
         ]);
 
+        const brandsPage = parseInt(req.query.brandsPage as string) || 1;
+        const brandsLimit = 100;
+        const brandsSkip = (brandsPage - 1) * brandsLimit;
         const totalBrands = brandsAgg.length;
         const brands = brandsAgg.slice(brandsSkip, brandsSkip + brandsLimit);
 
-        // 3. Calcular rango de precios para la selección actual
+        // 6. Precios
         const priceStats = await Product.aggregate([
             { $match: baseQuery },
             {
@@ -153,12 +172,11 @@ productsRouter.get(
         ]);
 
         const priceRange = priceStats[0]
-            ? { min: priceStats[0].minPrice, max: priceStats[0].maxPrice }
-            : { min: 0, max: 0 };
+            ? { min: Math.floor(priceStats[0].minPrice || 0), max: Math.ceil(priceStats[0].maxPrice || 1000000) }
+            : { min: 0, max: 1000000 };
 
-        // 4. Extraer atributos únicos de variantes presentes en la selección actual
+        // 7. Atributos
         const attributeDefs = await AttributeDefinition.find({ active: true }).select('name key type values unit');
-
         const attributeValues = await Product.aggregate([
             { $match: { ...baseQuery, variants: { $exists: true, $ne: [] } } },
             { $unwind: '$variants' },
@@ -177,8 +195,7 @@ productsRouter.get(
             .map((def) => {
                 const defKey = typeof def.key === 'string' ? def.key : '';
                 const valuesFromProducts = attributeValues.find((av) => av._id === defKey);
-
-                if (!valuesFromProducts) return null; // Si no hay productos con este atributo, no lo mostramos
+                if (!valuesFromProducts) return null;
 
                 return {
                     name: def.name,
@@ -188,10 +205,10 @@ productsRouter.get(
                     unit: def.unit,
                 };
             })
-            .filter(Boolean); // Filtrar los nulls
+            .filter(Boolean);
 
         return success(res, {
-            categories: categoriesAgg,
+            categories: categoriesTree,
             brands: {
                 items: brands,
                 total: totalBrands,
@@ -226,16 +243,26 @@ productsRouter.get(
 
         const query: Record<string, unknown> = { available: true };
 
+        const allCategories = await Category.find({ active: true }).lean();
+        const getBranchIds = (parentSlugOrId: string) => {
+            const getChildrenIds = (parentId: string): string[] => {
+                const children = allCategories.filter(c => c.parentCategory?.toString() === parentId);
+                return [parentId, ...children.flatMap(c => getChildrenIds(c._id.toString()))];
+            };
+            const cat = allCategories.find(c => c.slug === parentSlugOrId || c._id.toString() === parentSlugOrId);
+            return cat ? getChildrenIds(cat._id.toString()) : [];
+        };
+
         // Filtro por categoría
         if (category) {
-            const cat = await Category.findOne({ slug: category, active: true });
-            if (cat) query.category = cat._id;
+            const branchIds = getBranchIds(category as string);
+            if (branchIds.length > 0) query.$or = [{ category: { $in: branchIds } }, { subcategories: { $in: branchIds } }];
         }
 
         // Filtro por subcategoría
         if (subcategory) {
-            const subcat = await Category.findOne({ slug: subcategory, active: true });
-            if (subcat) query.subcategories = subcat._id;
+            const branchIds = getBranchIds(subcategory as string);
+            if (branchIds.length > 0) query.$or = [{ category: { $in: branchIds } }, { subcategories: { $in: branchIds } }];
         }
 
         // Filtro por marca

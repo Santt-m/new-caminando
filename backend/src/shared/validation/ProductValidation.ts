@@ -133,75 +133,75 @@ const ScrapingMetadataSchema = z.object({
     validationErrors: z.array(z.string()).optional()
 }).strict();
 
-// Esquema principal para producto de supermercado
-export const ProductSchema = z.object({
+// Esquema base para producto (sin refinamientos)
+export const ProductBaseSchema = z.object({
     // Información básica requerida
     name: TranslatedFieldSchema,
     slug: z.string().optional(), // Se genera automáticamente
     brand: z.string().optional(), // ID de marca
     category: z.string(), // ID de categoría requerido
     subcategories: z.array(z.string()).optional(),
-    
+
     // Identificadores
     publicId: z.string().optional(),
     sku: z.string().optional(),
     ean: z.string().regex(/^\d{8,13}$/).optional(), // EAN principal opcional
-    
+
     // Descripción
     description: TranslatedFieldSchema.optional(),
     shortDescription: TranslatedFieldSchema.optional(),
     images: z.array(z.string().url()).optional(),
     imageUrl: z.string().url().optional(),
     thumbnailUrl: z.string().url().optional(),
-    
+
     // Categorización
     tags: z.array(z.string()).optional(),
     keywords: z.array(z.string()).optional(),
-    
+
     // Precios - al menos un precio es requerido
     price: z.number().positive('El precio debe ser positivo'),
     currency: z.enum(['ARS', 'USD', 'PEN']).default('ARS'),
     available: z.boolean().default(true),
     stock: z.number().int().nonnegative().optional(),
-    
+
     // Variantes - al menos una variante con EAN es requerida
     variants: z.array(ProductVariantSchema).min(1, 'Debe tener al menos una variante con EAN'),
     defaultVariantId: z.string().optional(),
-    
+
     // Opciones configurables
     options: z.array(ProductOptionSchema).optional(),
-    
+
     // Información física
     unit: z.string().optional(),
     weight: z.number().positive().optional(),
     dimensions: DimensionsSchema.optional(),
     shippingCost: z.number().nonnegative().default(0),
-    
+
     // Información nutricional
     nutritionalInfo: NutritionalInfoSchema.optional(),
-    
+
     // Ofertas y promociones
     offers: z.array(ProductOfferSchema).optional(),
-    
+
     // Estado
     featured: z.boolean().default(false),
     isActive: z.boolean().default(true),
-    
+
     // Origen - al menos una fuente es requerida
     sources: z.array(ProductSourceSchema).min(1, 'Debe tener al menos una fuente de supermercado'),
-    
+
     // Metadata de scraping
     scrapingMetadata: ScrapingMetadataSchema.optional()
-}).strict().refine(() => {
-    // Validar que el slug se genere si no se proporciona
-    return true; // El middleware se encarga de esto
-}).refine((data) => {
+}).strict();
+
+// Esquema principal con refinamientos
+export const ProductSchema = ProductBaseSchema.refine((data) => {
     // Validar que haya consistencia entre precio base y variantes
     if (data.variants && data.variants.length > 0) {
         const variantPrices = data.variants.map(v => v.price);
         const minVariantPrice = Math.min(...variantPrices);
         const maxVariantPrice = Math.max(...variantPrices);
-        
+
         // El precio base debe estar dentro del rango de precios de variantes
         return data.price >= minVariantPrice && data.price <= maxVariantPrice;
     }
@@ -233,22 +233,22 @@ export const ScrapedProductInputSchema = z.object({
     stock: z.number().int().nonnegative().optional(),
     available: z.boolean().default(true),
     images: z.array(z.string().url()).optional(),
-    
+
     // Identificadores
     ean: z.string().regex(/^\d{8,13}$/).optional(),
     sku: z.string().optional(),
     storeProductId: z.string().optional(),
-    
+
     // Información física
     unit: z.string().optional(),
     weight: z.number().positive().optional(),
     packageSize: z.string().optional(),
     packageType: z.enum(['botella', 'caja', 'bolsa', 'lata', 'frasco', 'otro']).optional(),
-    
+
     // Categorización
     categoryPath: z.array(z.string()).min(1),
     brand: z.string().optional(),
-    
+
     // Metadata del scraping
     scrapedAt: z.date().default(() => new Date()),
     url: z.string().url(),
@@ -257,7 +257,7 @@ export const ScrapedProductInputSchema = z.object({
 }).strict();
 
 // Esquema para actualización de producto existente
-export const ProductUpdateSchema = ProductSchema.partial().extend({
+export const ProductUpdateSchema = ProductBaseSchema.partial().extend({
     id: z.string()
 }).strict();
 
@@ -290,7 +290,7 @@ export function calculatePriceRange(variants: ProductVariantInput[]): { min: num
     if (!variants || variants.length === 0) {
         return { min: 0, max: 0 };
     }
-    
+
     const prices = variants.map(v => v.price);
     return {
         min: Math.min(...prices),
@@ -302,13 +302,13 @@ export function findBestVariant(variants: ProductVariantInput[]): ProductVariant
     if (!variants || variants.length === 0) {
         return null;
     }
-    
+
     // Buscar la variante con mejor relación precio/disponibilidad
     const availableVariants = variants.filter(v => v.available !== false);
     if (availableVariants.length === 0) {
         return variants[0];
     }
-    
+
     return availableVariants.reduce((best, current) => {
         return current.price < best.price ? current : best;
     });
@@ -328,14 +328,14 @@ export function calculateDiscountedPrice(price: number, offer: ProductOfferInput
     if (offer.offerPrice) {
         return offer.offerPrice;
     }
-    
+
     if (offer.discountPercentage) {
         return price * (1 - offer.discountPercentage / 100);
     }
-    
+
     if (offer.discountAmount) {
         return Math.max(0, price - offer.discountAmount);
     }
-    
+
     return price;
 }

@@ -3,7 +3,7 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
 import { requireAdmin } from '../../middlewares/auth.js';
 import { Category } from '../../models/Category.js';
 import { CategoryMapper } from '../../shared/utils/CategoryMapper.js';
-import { Product, type ProductDocument } from '../../models/ProductEnhanced.js';
+import { Product, type ProductDocument } from '../../models/Product.js';
 
 
 

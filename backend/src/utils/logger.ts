@@ -53,16 +53,22 @@ class DatabaseTransport extends Transport {
             try {
                 const { level, message, module, details, context, userId, requestId, duration, eventType, ...rest } = info;
 
-                // Strip colors and extract level
-                // eslint-disable-next-line no-control-regex
+                // Strip colors helper
+                const stripColors = (str: string) =>
+                    str.replace(/\x1b\[[0-9;]*m/gi, '').replace(/\[[0-9;]*m/g, '').trim();
+
                 const cleanLevel = typeof level === 'string'
-                    ? level.replace(/\x1b\[[0-9;]*m/gi, '').replace(/\[[0-9;]*m/g, '').trim().toLowerCase()
+                    ? stripColors(level).toLowerCase()
                     : level;
 
                 // Skip debug logs for DB
                 if (cleanLevel === 'debug') {
                     return;
                 }
+
+                const cleanMessage = typeof message === 'string'
+                    ? stripColors(message)
+                    : message;
 
                 const ip = context?.ip || 'unknown';
                 let ipInfo = undefined;
@@ -80,7 +86,7 @@ class DatabaseTransport extends Transport {
                 await Activity.create({
                     level: cleanLevel as 'error' | 'warn' | 'info' | 'audit',
                     module: module || 'SYSTEM',
-                    message,
+                    message: cleanMessage,
                     details: Object.keys(finalDetails).length > 0 ? finalDetails : undefined,
                     userId,
                     requestId,

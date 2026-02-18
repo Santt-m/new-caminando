@@ -66,14 +66,13 @@ export const ProductsPage: React.FC = () => {
     }, [searchParams]);
 
     // Data Fetching: Main Filters Info
-    const { data: filtersData, isLoading: isLoadingFilters } = useQuery({
-        queryKey: ['public-filters', activeFilters.category, activeFilters.subcategory, activeFilters.search],
+    const { data: filtersData } = useQuery({
+        queryKey: ['public-filters'], // KEY IS NOW STABLE
         queryFn: () => PublicProductsService.getFilters({
-            category: activeFilters.category,
-            subcategory: activeFilters.subcategory,
+            // No category/subcategory here to load all categories upfront
             search: activeFilters.search
         }),
-        placeholderData: (prev) => prev, // PREVENTS UI FLASHING ON RELOAD
+        placeholderData: (p) => p,
     });
 
     // Separate query for Brands to handle pagination
@@ -83,11 +82,9 @@ export const ProductsPage: React.FC = () => {
         hasNextPage,
         isFetchingNextPage
     } = useInfiniteQuery({
-        queryKey: ['public-brands', activeFilters.category, activeFilters.subcategory, activeFilters.search],
+        queryKey: ['public-brands', activeFilters.search], // STABLE KEY
         queryFn: ({ pageParam = 1 }) => PublicProductsService.getFilters({
             brandsPage: pageParam,
-            category: activeFilters.category,
-            subcategory: activeFilters.subcategory,
             search: activeFilters.search
         }),
         getNextPageParam: (lastPage) => {
@@ -172,9 +169,9 @@ export const ProductsPage: React.FC = () => {
                 {/* Desktop Sidebar - Left */}
                 <aside className="hidden md:flex flex-col w-72 lg:w-80 border-r border-muted/50 flex-shrink-0 animate-in fade-in slide-in-from-left-4 duration-500">
                     <div className="flex-1 overflow-y-auto py-6 px-6 no-scrollbar">
-                        {isLoadingFilters ? (
+                        {!mergedFilters ? (
                             <SidebarSkeleton />
-                        ) : mergedFilters && (
+                        ) : (
                             <FilterSidebar
                                 filters={mergedFilters}
                                 activeFilters={activeFilters}
@@ -240,9 +237,9 @@ export const ProductsPage: React.FC = () => {
                                         <SheetTitle className="text-2xl font-black">{t(traducciones, 'filters')}</SheetTitle>
                                     </SheetHeader>
                                     <div className="h-[calc(100vh-100px)] overflow-y-auto p-6">
-                                        {isLoadingFilters ? (
+                                        {!mergedFilters ? (
                                             <SidebarSkeleton />
-                                        ) : mergedFilters && (
+                                        ) : (
                                             <FilterSidebar
                                                 filters={mergedFilters}
                                                 activeFilters={activeFilters}
@@ -330,9 +327,11 @@ export const ProductsPage: React.FC = () => {
 
             {/* Product Detail Modal */}
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-                <DialogContent className="max-w-4xl p-6 rounded-3xl overflow-hidden max-h-[90vh]">
+                <DialogContent className="max-w-4xl p-0 rounded-3xl overflow-hidden max-h-[95vh] flex flex-col">
                     {selectedProduct && (
-                        <ProductDetailContent product={selectedProduct} isModal={true} />
+                        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+                            <ProductDetailContent product={selectedProduct} isModal={true} />
+                        </div>
                     )}
                 </DialogContent>
             </Dialog>

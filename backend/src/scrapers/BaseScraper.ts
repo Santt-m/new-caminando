@@ -37,7 +37,7 @@ export abstract class BaseScraper implements IScraperNode {
     /**
      * Toma una captura de pantalla para el panel admin
      */
-    protected async takeScreenshot(name: string = 'latest'): Promise<void> {
+    protected async takeScreenshot(name: string = 'latest', silent: boolean = false): Promise<void> {
         if (!this.page) return;
         try {
             const screenshotsDir = path.join(process.cwd(), 'public', 'screenshots', this.storeId);
@@ -48,15 +48,20 @@ export abstract class BaseScraper implements IScraperNode {
             await this.page.screenshot({
                 path: screenshotPath,
                 type: 'jpeg',
-                quality: 60
+                quality: 60,
+                timeout: 30000, // Timeout más largo para permitir carga de fuentes
+                animations: 'disabled',
+                caret: 'hide'
             });
             logger.debug(`[${this.name}] Captura guardada: ${screenshotPath}`, { module: 'BROWSER', store: this.storeId });
         } catch (error: any) {
-            logger.error(`[${this.name}] Error al tomar captura: ${error.message}`, {
-                module: 'BROWSER',
-                store: this.storeId,
-                error: error instanceof Error ? error.message : 'Error desconocido'
-            });
+            if (!silent) {
+                logger.error(`[${this.name}] Error al tomar captura: ${error.message}`, {
+                    module: 'BROWSER',
+                    store: this.storeId,
+                    error: error instanceof Error ? error.message : 'Error desconocido'
+                });
+            }
         }
     }
 
@@ -97,7 +102,7 @@ export abstract class BaseScraper implements IScraperNode {
             screenshotInterval = setInterval(async () => {
                 try {
                     if (this.page && !this.page.isClosed()) {
-                        await this.takeScreenshot('latest');
+                        await this.takeScreenshot('latest', true);
                     }
                 } catch (err) {
                     // Silenciar errores de captura periódica para no interrumpir el flujo principal

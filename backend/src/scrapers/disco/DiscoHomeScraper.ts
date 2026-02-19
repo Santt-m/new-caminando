@@ -5,6 +5,7 @@ import { JOB_PRIORITIES, StoreName } from '../../config/bullmq/QueueConfig.js';
 import { Category } from '../../models/Category.js';
 import logger from '../../utils/logger.js';
 import { slugify } from '../../utils/slugify.js';
+import { getQueueName } from '../../workers/scraper.worker.js';
 
 export class DiscoHomeScraper extends BaseScraper {
     name = 'DISCO_HOME';
@@ -39,7 +40,7 @@ export class DiscoHomeScraper extends BaseScraper {
 
         logger.info(`[${this.name}] Processing category tree...`, { module: 'SCRAPER_NODE' });
 
-        const queue = QueueFactory.getQueue('scraper-tasks');
+        const queue = QueueFactory.getQueue(getQueueName(StoreName.DISCO));
         await this.processCategoryTree(nodes, null, queue, '');
     }
 

@@ -93,7 +93,7 @@ export interface ProductOffer {
  * Interfaz para métodos estáticos del modelo Product
  */
 export interface ProductModel extends mongoose.Model<ProductDocument> {
-    findByEAN(ean: string): Promise<ProductDocument | null>;
+    findByEAN(ean: string | string[]): Promise<ProductDocument | null>;
     findByEANs(eans: string[]): Promise<ProductDocument[]>;
     findWithTemporaryEANs(): mongoose.Query<ProductDocument[], ProductDocument>;
     findWithoutEAN(): mongoose.Query<ProductDocument[], ProductDocument>;
@@ -682,11 +682,13 @@ ProductSchema.methods.updateScrapingMetadata = function (confidenceScore: number
 // Métodos estáticos para operaciones con EAN
 
 // Buscar producto por EAN (en principal o variantes)
-ProductSchema.statics.findByEAN = function (ean: string) {
+// Soporta un solo EAN o un array de EANs
+ProductSchema.statics.findByEAN = function (ean: string | string[]) {
+    const eanQuery = Array.isArray(ean) ? { $in: ean } : ean;
     return this.findOne({
         $or: [
-            { ean: ean },
-            { 'variants.ean': ean }
+            { ean: eanQuery },
+            { 'variants.ean': eanQuery }
         ]
     });
 };

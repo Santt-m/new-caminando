@@ -5,6 +5,7 @@ import { JOB_PRIORITIES, StoreName } from '../../config/bullmq/QueueConfig.js';
 import { Category } from '../../models/Category.js';
 import logger from '../../utils/logger.js';
 import { slugify } from '../../utils/slugify.js';
+import { getQueueName } from '../../workers/scraper.worker.js';
 
 export class JumboHomeScraper extends BaseScraper {
     name = 'JUMBO_HOME';
@@ -40,7 +41,7 @@ export class JumboHomeScraper extends BaseScraper {
 
         logger.info(`[${this.name}] Processing category tree...`, { module: 'SCRAPER_NODE' });
 
-        const queue = QueueFactory.getQueue('scraper-tasks');
+        const queue = QueueFactory.getQueue(getQueueName(StoreName.JUMBO));
 
         // Recursive function to process tree
         await this.processCategoryTree(nodes, null, queue);

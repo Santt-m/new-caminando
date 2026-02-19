@@ -4,12 +4,14 @@ import { JOB_PRIORITIES } from '../../config/bullmq/QueueConfig.js';
 import { Category } from '../../models/Category.js';
 import logger from '../../utils/logger.js';
 import { slugify } from '../../utils/slugify.js';
+import { StoreName } from '../../config/bullmq/QueueConfig.js';
+import { getQueueName } from '../../workers/scraper.worker.js';
 
 export class CarrefourHomeScraper extends BaseScraper {
     name = 'CARREFOUR_HOME';
 
     constructor() {
-        super('carrefour');
+        super(StoreName.CARREFOUR);
     }
 
     canHandle(data: any): boolean {
@@ -39,7 +41,7 @@ export class CarrefourHomeScraper extends BaseScraper {
 
         logger.info(`[${this.name}] Processing category tree...`, { module: 'SCRAPER_NODE' });
 
-        const queue = QueueFactory.getQueue('scraper-tasks');
+        const queue = QueueFactory.getQueue(getQueueName(StoreName.CARREFOUR));
 
         // Recursive function to process tree
         await this.processCategoryTree(nodes, null, queue);

@@ -177,11 +177,12 @@ export class CarrefourProductScraper extends BaseScraper {
                     let productDoc = null;
 
                     // 1. PRIORIDAD: Buscar por EAN (Vínculo global para comparación de precios)
-                    if (mainItem.ean) {
-                        productDoc = await Product.findByEAN(mainItem.ean);
-
+                    // Buscamos por TODOS los EANs recopilados para evitar colisiones
+                    const allEans = items.map((i: VTEXItem) => i.ean).filter(Boolean);
+                    if (allEans.length > 0) {
+                        productDoc = await (Product as any).findByEAN(allEans);
                         if (productDoc) {
-                            logger.info(`[${this.name}] Linked product by EAN: ${productName} (${mainItem.ean})`, { module: 'SCRAPER_NODE' });
+                            logger.info(`[${this.name}] Linked product by EAN: ${productName} (Found among: ${allEans.join(', ')})`, { module: 'SCRAPER_NODE' });
                         }
                     }
 
@@ -222,7 +223,7 @@ export class CarrefourProductScraper extends BaseScraper {
                     // Manejo de variantes: Actualizar si el EAN ya existe, o agregar si es nuevo
                     if (!productDoc.variants) productDoc.variants = [];
                     for (const v of variants) {
-                        const vIndex = productDoc.variants.findIndex(pv => pv.ean === v.ean);
+                        const vIndex = productDoc.variants.findIndex((pv: any) => pv.ean === v.ean);
                         if (vIndex > -1) {
                             productDoc.variants[vIndex] = { ...productDoc.variants[vIndex], ...v };
                         } else {
@@ -261,8 +262,6 @@ export class CarrefourProductScraper extends BaseScraper {
             }
 
             from += 50;
-            // Safety limit
-            if (from > 2500) hasMore = false;
         }
 
         logger.info(`[${this.name}] Finalizado. ${totalScraped} productos procesados.`, { module: 'SCRAPER_NODE' });

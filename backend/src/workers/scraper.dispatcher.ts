@@ -1,8 +1,5 @@
 import { Job } from 'bullmq';
 import { BaseScraper } from '../scrapers/BaseScraper.js';
-import { QueueFactory } from '../config/bullmq/QueueFactory.js';
-import { JOB_PRIORITIES } from '../config/bullmq/QueueConfig.js';
-import { getQueueName } from './scraper.worker.js';
 import logger from '../utils/logger.js';
 
 // --- Importar todos los scrapers ---
@@ -67,17 +64,7 @@ export const dispatchScraperJob = async (job: Job): Promise<void> => {
 
         await runAction(store, 'discover-categories', job);
 
-        // Encolar scraping de productos en la queue propia del store
-        // (la descarga de subcategorías la hace el HomeScraper como parte de discover-categories)
-        const queue = QueueFactory.getQueue(getQueueName(store));
-        await queue.add('SCRAPE_PRODUCTS', {
-            store,
-            action: 'scrape-products',
-        }, {
-            priority: JOB_PRIORITIES.SCRAPE_PRODUCT,
-        });
-
-        logger.info(`[Dispatcher] Pipeline completo de ${store}: categorías OK → scraping de productos encolado`, {
+        logger.info(`[Dispatcher] Pipeline completo de ${store}: categorías sincronizadas. Los sub-trabajos de productos han sido encolados individualmente.`, {
             module: 'DISPATCHER',
             store,
         });

@@ -125,7 +125,7 @@ export class VeaProductScraper extends BaseScraper {
                             available: commertialOffer.AvailableQuantity > 0,
                             stock: commertialOffer.AvailableQuantity,
                             images: item.images?.map((img) => img.imageUrl) || [],
-                            packageSize: item.measurementUnit && item.unitMultiplier ? `${item.unitMultiplier}${item.unitMultiplier}${item.measurementUnit}` : undefined
+                            packageSize: item.measurementUnit && item.unitMultiplier ? `${item.unitMultiplier}${item.measurementUnit}` : undefined
                         });
                     }
 
@@ -153,10 +153,12 @@ export class VeaProductScraper extends BaseScraper {
                     let productDoc = null;
 
                     // 1. PRIORIDAD: Buscar por EAN (Vínculo global para comparación de precios)
-                    if (mainItem.ean) {
-                        productDoc = await Product.findByEAN(mainItem.ean);
+                    // Buscamos por TODOS los EANs recopilados para evitar colisiones
+                    const allEans = items.map((i: VTEXItem) => i.ean).filter(Boolean);
+                    if (allEans.length > 0) {
+                        productDoc = await (Product as any).findByEAN(allEans);
                         if (productDoc) {
-                            logger.info(`[${this.name}] Linked product by EAN: ${productName} (${mainItem.ean})`, { module: 'SCRAPER_NODE' });
+                            logger.info(`[${this.name}] Linked product by EAN: ${productName} (Found among: ${allEans.join(', ')})`, { module: 'SCRAPER_NODE' });
                         }
                     }
 
@@ -211,6 +213,17 @@ export class VeaProductScraper extends BaseScraper {
                         productDoc.sources.push(sourceData as any);
                     }
 
+                    // Manejo de variantes: Actualizar si el EAN ya existe, o agregar si es nuevo
+                    if (!productDoc.variants) productDoc.variants = [];
+                    for (const v of variants) {
+                        const vIndex = productDoc.variants.findIndex((pv: any) => pv.ean === v.ean);
+                        if (vIndex > -1) {
+                            productDoc.variants[vIndex] = { ...productDoc.variants[vIndex], ...v };
+                        } else {
+                            productDoc.variants.push(v);
+                        }
+                    }
+
                     await productDoc.save();
                     totalScraped++;
                 } catch (err) {
@@ -218,7 +231,6 @@ export class VeaProductScraper extends BaseScraper {
                 }
             }
             from += 50;
-            if (from > 2000) hasMore = false;
         }
         logger.info(`[${this.name}] Finalizado. ${totalScraped} productos procesados.`, { module: 'SCRAPER_NODE' });
     }

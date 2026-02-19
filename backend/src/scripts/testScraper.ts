@@ -2,7 +2,6 @@
 import { connectDB } from '../config/db.js';
 import { BrowserFactory } from '../config/browser/BrowserFactory.js';
 import logger from '../utils/logger.js';
-import { StoreName } from '../config/bullmq/QueueConfig.js';
 
 // Import scrapers
 import { JumboHomeScraper } from '../scrapers/jumbo/JumboHomeScraper.js';
@@ -21,9 +20,10 @@ async function runTest() {
     const categoryIdArg = args.find(a => a.startsWith('--categoryId='))?.split('=')[1];
     const externalIdArg = args.find(a => a.startsWith('--externalId='))?.split('=')[1];
     const urlArg = args.find(a => a.startsWith('--url='))?.split('=')[1];
+    const idPathArg = args.find(a => a.startsWith('--idPath='))?.split('=')[1];
 
     if (!storeArg || !actionArg) {
-        console.error('Usage: npx tsx src/scripts/testScraper.ts --store=<store> --action=<action> [--categoryId=<id>] [--externalId=<id>] [--url=<url>]');
+        console.error('Usage: npx tsx src/scripts/testScraper.ts --store=<store> --action=<action> [--categoryId=<id>] [--externalId=<id>] [--url=<url>] [--idPath=<path>]');
         process.exit(1);
     }
 
@@ -57,7 +57,8 @@ async function runTest() {
             action: actionArg,
             categoryId: categoryIdArg,
             externalId: externalIdArg,
-            url: urlArg
+            url: urlArg,
+            idPath: idPathArg
         };
 
         logger.info(`Starting manual test for ${storeArg} - ${actionArg}`, { module: 'SCRAPER', data });

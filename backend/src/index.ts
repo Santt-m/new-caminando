@@ -4,15 +4,17 @@ import { connectDB } from './config/db.js';
 import { connectRedis } from './config/redis.js';
 import { logError } from './utils/logger.js';
 import logger from './utils/logger.js';
-import { startScraperWorker } from './workers/scraper.worker.js';
+import { startScraperWorkers } from './workers/scraper.worker.js';
+import { setScraperWorkers } from './workers/scraper.registry.js';
 
 const start = async () => {
   try {
     await connectDB();
     await connectRedis();
 
-    // Iniciar el worker de BullMQ
-    startScraperWorker();
+    // Iniciar un worker dedicado por supermercado
+    const scraperWorkers = await startScraperWorkers();
+    setScraperWorkers(scraperWorkers);
 
     const app = createApp();
     app.listen(env.port, () => {

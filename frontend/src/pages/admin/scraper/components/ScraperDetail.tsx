@@ -36,33 +36,38 @@ export const ScraperDetail = ({ scraper }: ScraperDetailProps) => {
     const queryClient = useQueryClient();
     const [settings, setSettings] = useState<ScraperSettings>({
         enabled: scraper.settings?.enabled ?? true,
-        maxConcurrency: scraper.settings?.maxConcurrency || 2,
-        retryCount: scraper.settings?.retryCount || 3,
-        retryDelay: scraper.settings?.retryDelay || 5000,
-        productUpdateFrequency: scraper.settings?.productUpdateFrequency || 24
+        maxConcurrency: scraper.settings?.maxConcurrency ?? 2,
+        retryCount: scraper.settings?.retryCount ?? 3,
+        retryDelay: scraper.settings?.delayBetweenRequests ?? scraper.settings?.retryDelay ?? 1000,
+        delayBetweenRequests: scraper.settings?.delayBetweenRequests ?? 1000,
+        productUpdateFrequency: scraper.settings?.productUpdateFrequency ?? 24
     });
 
     const [screenshotUrl, setScreenshotUrl] = useState<string>(
         AdminScraperService.getScreenshotUrl(scraper.id)
     );
+    const [screenshotLoaded, setScreenshotLoaded] = useState<boolean>(false);
 
     useEffect(() => {
         if (scraper.settings) {
+            const delay = scraper.settings.delayBetweenRequests ?? scraper.settings.retryDelay ?? 1000;
             setSettings({
                 enabled: scraper.settings.enabled ?? true,
                 maxConcurrency: scraper.settings.maxConcurrency,
                 retryCount: scraper.settings.retryCount,
-                retryDelay: scraper.settings.retryDelay,
-                productUpdateFrequency: scraper.settings.productUpdateFrequency || 24
+                retryDelay: delay,
+                delayBetweenRequests: delay,
+                productUpdateFrequency: scraper.settings.productUpdateFrequency ?? 24
             });
         }
     }, [scraper.settings]);
 
-    // Polling de screenshots cuando la pestaña está activa
+    // Refresh screenshot URL periodically
     useEffect(() => {
         const interval = setInterval(() => {
+            setScreenshotLoaded(false);
             setScreenshotUrl(AdminScraperService.getScreenshotUrl(scraper.id));
-        }, 10000); // Cada 10s
+        }, 10000);
         return () => clearInterval(interval);
     }, [scraper.id]);
 
@@ -95,8 +100,22 @@ export const ScraperDetail = ({ scraper }: ScraperDetailProps) => {
     });
 
     const handleSaveSettings = () => {
-        updateSettingsMutation.mutate(settings);
+        // Ensure both retryDelay and delayBetweenRequests are in sync
+        updateSettingsMutation.mutate({
+            ...settings,
+            delayBetweenRequests: settings.retryDelay,
+        });
     };
+
+    const clearScreenshotsMutation = useMutation({
+        mutationFn: () => AdminScraperService.clearScreenshots(scraper.id),
+        onSuccess: () => {
+            setScreenshotLoaded(false);
+            setScreenshotUrl(AdminScraperService.getScreenshotUrl(scraper.id));
+            toast.success('Capturas eliminadas correctamente');
+        },
+        onError: () => toast.error('Error al eliminar capturas')
+    });
 
     const getLogIcon = (level: ScraperLog['level']) => {
         switch (level) {
@@ -253,48 +272,60 @@ export const ScraperDetail = ({ scraper }: ScraperDetailProps) => {
                                     <h4 className="text-lg font-bold tracking-tight">Visualización en Tiempo Real</h4>
                                     <p className="text-sm text-muted-foreground">Monitoriza visualmente lo que el motor de scraping está procesando.</p>
                                 </div>
-                                <Badge variant="secondary" className="h-7 px-4 border-dashed bg-secondary/50 font-semibold">
-                                    Refresh Rate: 10s
-                                </Badge>
-                            </div>
-                            <div className="flex-1 overflow-hidden border-2 border-primary/5 rounded-[2rem] bg-muted/20 relative group">
-                                <img
-                                    src={screenshotUrl}
-                                    alt="Scraper Screenshot"
-                                    className="w-full h-full object-contain bg-black/40 transition-opacity duration-500"
-                                    onError={(e) => {
-                                        const target = e.target as HTMLImageElement;
-                                        target.style.display = 'none';
-                                        const parent = target.parentElement;
-                                        if (parent) {
-                                            const placeholder = parent.querySelector('.screenshot-placeholder');
-                                            if (placeholder) (placeholder as HTMLElement).style.display = 'flex';
-                                        }
-                                    }}
-                                    onLoad={(e) => {
-                                        const target = e.target as HTMLImageElement;
-                                        target.style.display = 'block';
-                                        const parent = target.parentElement;
-                                        if (parent) {
-                                            const placeholder = parent.querySelector('.screenshot-placeholder');
-                                            if (placeholder) (placeholder as HTMLElement).style.display = 'none';
-                                        }
-                                    }}
-                                />
-                                <div className="screenshot-placeholder absolute inset-0 flex flex-col items-center justify-center p-12 text-center gap-6">
-                                    <div className="h-24 w-24 rounded-full bg-background border shadow-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-500">
-                                        <ImageIcon className="h-10 w-10 text-primary/40" />
-                                    </div>
-                                    <div className="max-w-xs">
-                                        <p className="text-lg font-bold">Sin señal de video</p>
-                                        <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
-                                            El navegador headless se activará automáticamente al iniciar una tarea de descubrimiento o scraping.
-                                        </p>
-                                    </div>
-                                    <Button variant="outline" className="mt-4 gap-2 rounded-full px-8" onClick={() => setScreenshotUrl(AdminScraperService.getScreenshotUrl(scraper.id))}>
-                                        <RefreshCcw className="h-4 w-4" /> Reintentar Conexión
+                                <div className="flex items-center gap-3">
+                                    <Badge variant="secondary" className="h-7 px-4 border-dashed bg-secondary/50 font-semibold">
+                                        Refresh Rate: 10s
+                                    </Badge>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7 text-[10px] uppercase font-bold tracking-widest gap-2 border-destructive/30 text-destructive hover:bg-destructive/5"
+                                        onClick={() => clearScreenshotsMutation.mutate()}
+                                        disabled={clearScreenshotsMutation.isPending}
+                                    >
+                                        <RefreshCcw className={cn('h-3 w-3', clearScreenshotsMutation.isPending && 'animate-spin')} />
+                                        Limpiar
                                     </Button>
                                 </div>
+                            </div>
+                            <div className="flex-1 overflow-hidden border-2 border-primary/5 rounded-[2rem] bg-muted/20 relative group">
+                                {screenshotLoaded && (
+                                    <img
+                                        src={screenshotUrl}
+                                        alt="Scraper Screenshot"
+                                        className="w-full h-full object-contain bg-black/40 transition-opacity duration-500"
+                                    />
+                                )}
+                                {/* Preload: hidden img for loading state detection */}
+                                <img
+                                    key={screenshotUrl}
+                                    src={screenshotUrl}
+                                    alt=""
+                                    className="hidden"
+                                    onLoad={() => setScreenshotLoaded(true)}
+                                    onError={() => setScreenshotLoaded(false)}
+                                />
+                                {!screenshotLoaded && (
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center p-12 text-center gap-6">
+                                        <div className="h-24 w-24 rounded-full bg-background border shadow-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-500">
+                                            <ImageIcon className="h-10 w-10 text-primary/40" />
+                                        </div>
+                                        <div className="max-w-xs">
+                                            <p className="text-lg font-bold">Sin señal de video</p>
+                                            <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
+                                                El navegador headless se activará automáticamente al iniciar una tarea.
+                                            </p>
+                                        </div>
+                                        <Button variant="outline" className="mt-4 gap-2 rounded-full px-8"
+                                            onClick={() => {
+                                                setScreenshotLoaded(false);
+                                                setScreenshotUrl(AdminScraperService.getScreenshotUrl(scraper.id));
+                                            }}
+                                        >
+                                            <RefreshCcw className="h-4 w-4" /> Reintentar Conexión
+                                        </Button>
+                                    </div>
+                                )}
                                 <div className="absolute bottom-6 right-6 flex items-center gap-2">
                                     <Badge className="bg-black/60 backdrop-blur-md text-white border-white/10 px-4 py-1.5 h-auto font-mono text-[10px] tracking-widest">
                                         LIVE_FEED_01

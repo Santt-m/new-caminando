@@ -10,6 +10,7 @@ export interface TranslatedField {
 export interface CategoryDocument extends Document {
   name: string | TranslatedField;
   slug: string;
+  url?: string;
   description?: string | TranslatedField;
   imageUrl?: string;
   parentCategory?: mongoose.Types.ObjectId; // null = categoría principal, si tiene valor = subcategoría
@@ -18,7 +19,7 @@ export interface CategoryDocument extends Document {
   level?: number;
   keywords?: string[];
   synonyms?: string[];
-  storeMappings?: Record<string, unknown[]>;
+  storeMappings?: Record<string, any>;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -27,6 +28,7 @@ const CategorySchema = new Schema<CategoryDocument>(
   {
     name: { type: Schema.Types.Mixed, required: true },
     slug: { type: String, unique: true, index: true },
+    url: { type: String },
     description: { type: Schema.Types.Mixed },
     imageUrl: { type: String },
     parentCategory: { type: Schema.Types.ObjectId, ref: 'Category', index: true, default: null },

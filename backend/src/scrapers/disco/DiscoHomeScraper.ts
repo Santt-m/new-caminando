@@ -24,15 +24,13 @@ export class DiscoHomeScraper extends BaseScraper {
 
         logger.info(`[${this.name}] Fetching full category tree via API...`, { module: 'SCRAPER_NODE' });
 
-        const nodes = await this.page.evaluate(async () => {
-            try {
-                const response = await fetch('/api/catalog_system/pub/category/tree/3');
-                if (!response.ok) return [];
-                return await response.json();
-            } catch (e) {
+        // Fetch Category Tree using Node context
+        const nodes = await this.page.context().request.get('https://www.disco.com.ar/api/catalog_system/pub/category/tree/3')
+            .then(res => res.json())
+            .catch(err => {
+                logger.error(`[${this.name}] Failed to fetch category tree: ${err.message}`, { module: 'SCRAPER_NODE' });
                 return [];
-            }
-        });
+            });
 
         if (!nodes || nodes.length === 0) {
             logger.warn(`[${this.name}] API returned 0 categories`, { module: 'SCRAPER_NODE' });

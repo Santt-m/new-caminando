@@ -27,6 +27,8 @@ interface VTEXItem {
     itemId: string;
     name: string;
     ean: string;
+    measurementUnit: string;
+    unitMultiplier: number;
     images: VTEXImage[];
     sellers: VTEXSeller[];
     [key: string]: any;
@@ -68,17 +70,14 @@ export class DiscoProductScraper extends BaseScraper {
 
         while (hasMore) {
             const rangeTo = from + to;
-            const apiUrl = `/api/catalog_system/pub/products/search?fq=C:${effectiveId}&_from=${from}&_to=${rangeTo}`;
+            const apiUrl = `https://www.disco.com.ar/api/catalog_system/pub/products/search?fq=C:${effectiveId}&_from=${from}&_to=${rangeTo}`;
 
-            const products: VTEXProduct[] = await this.page.evaluate(async (url) => {
-                try {
-                    const res = await fetch(url);
-                    if (!res.ok) return [];
-                    return await res.json();
-                } catch (e) {
+            const products: VTEXProduct[] = await this.page.context().request.get(apiUrl)
+                .then(res => res.json())
+                .catch(err => {
+                    logger.error(`[${this.name}] API Fetch error: ${err.message}`, { module: 'SCRAPER_NODE' });
                     return [];
-                }
-            }, apiUrl);
+                });
 
             if (!products || products.length === 0) {
                 hasMore = false;
@@ -136,13 +135,30 @@ export class DiscoProductScraper extends BaseScraper {
                     }
 
                     const productSlug = slugify(productName) + '-' + productId;
-                    let productDoc = await Product.findOne({
-                        'sources.storeProductId': productId,
-                        'sources.store': StoreName.DISCO
-                    });
+                    let productDoc = null;
 
-                    if (!productDoc) productDoc = await Product.findOne({ slug: productSlug });
+                    // 1. PRIORIDAD: Buscar por EAN (Vínculo global para comparación de precios)
+                    if (mainItem.ean) {
+                        productDoc = await Product.findByEAN(mainItem.ean);
+                        if (productDoc) {
+                            logger.info(`[${this.name}] Linked product by EAN: ${productName} (${mainItem.ean})`, { module: 'SCRAPER_NODE' });
+                        }
+                    }
 
+                    // 2. SEGUNDA OPCION: Buscar por StoreProductID (Misma tienda)
+                    if (!productDoc) {
+                        productDoc = await Product.findOne({
+                            'sources.storeProductId': productId,
+                            'sources.store': StoreName.DISCO
+                        });
+                    }
+
+                    // 3. TERCERA OPCION: Si no existe, buscar por slug (fallback)
+                    if (!productDoc) {
+                        productDoc = await Product.findOne({ slug: productSlug });
+                    }
+
+                    // 4. CUARTA OPCION: Si no existe, crear uno nuevo
                     if (!productDoc) {
                         productDoc = new Product({
                             name: productName,
@@ -151,6 +167,7 @@ export class DiscoProductScraper extends BaseScraper {
                             category: categoryId,
                             sources: []
                         });
+                        logger.info(`[${this.name}] Creating new product: ${productName}`, { module: 'SCRAPER_NODE' });
                     }
 
                     productDoc.name = productName;

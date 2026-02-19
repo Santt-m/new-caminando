@@ -77,17 +77,20 @@ export class VeaProductScraper extends BaseScraper {
 
         while (hasMore) {
             const rangeTo = from + to;
-            const apiUrl = `/api/catalog_system/pub/products/search?fq=C:${effectiveId}&_from=${from}&_to=${rangeTo}`;
+            const apiUrl = `https://www.vea.com.ar/api/catalog_system/pub/products/search?fq=C:${effectiveId}&_from=${from}&_to=${rangeTo}`;
 
-            const products: VTEXProduct[] = await this.page.evaluate(async (url) => {
-                try {
-                    const res = await fetch(url);
-                    if (!res.ok) return [];
-                    return await res.json();
-                } catch (e) {
-                    return [];
-                }
-            }, apiUrl);
+            const response = await this.page.context().request.get(apiUrl);
+
+            if (!response.ok()) {
+                logger.warn(`[${this.name}] API Fetch failed with status ${response.status()}: ${response.statusText()}`, { module: 'SCRAPER_NODE' });
+                hasMore = false;
+                break;
+            }
+
+            const products: VTEXProduct[] = await response.json().catch(err => {
+                logger.error(`[${this.name}] API JSON Parse error: ${err.message}`, { module: 'SCRAPER_NODE' });
+                return [];
+            });
 
             if (!products || products.length === 0) {
                 hasMore = false;
@@ -122,7 +125,7 @@ export class VeaProductScraper extends BaseScraper {
                             available: commertialOffer.AvailableQuantity > 0,
                             stock: commertialOffer.AvailableQuantity,
                             images: item.images?.map((img) => img.imageUrl) || [],
-                            packageSize: item.measurementUnit && item.unitMultiplier ? `${item.unitMultiplier}${item.measurementUnit}` : undefined
+                            packageSize: item.measurementUnit && item.unitMultiplier ? `${item.unitMultiplier}${item.unitMultiplier}${item.measurementUnit}` : undefined
                         });
                     }
 
@@ -132,6 +135,7 @@ export class VeaProductScraper extends BaseScraper {
                     const price = mainOffer?.Price || 0;
                     const available = (mainOffer?.AvailableQuantity || 0) > 0;
                     const imageUrl = mainItem.images && mainItem.images.length > 0 ? mainItem.images[0].imageUrl : '';
+                    const mainEan = mainItem.ean || `${StoreName.VEA}-${mainItem.itemId}`;
 
                     let brandId = null;
                     if (brandName) {
@@ -144,14 +148,32 @@ export class VeaProductScraper extends BaseScraper {
                         brandId = brandDoc._id;
                     }
 
+                    // Upsert Product Logic
                     const productSlug = slugify(productName) + '-' + productId;
-                    let productDoc = await Product.findOne({
-                        'sources.storeProductId': productId,
-                        'sources.store': StoreName.VEA
-                    });
+                    let productDoc = null;
 
-                    if (!productDoc) productDoc = await Product.findOne({ slug: productSlug });
+                    // 1. PRIORIDAD: Buscar por EAN (Vínculo global para comparación de precios)
+                    if (mainItem.ean) {
+                        productDoc = await Product.findByEAN(mainItem.ean);
+                        if (productDoc) {
+                            logger.info(`[${this.name}] Linked product by EAN: ${productName} (${mainItem.ean})`, { module: 'SCRAPER_NODE' });
+                        }
+                    }
 
+                    // 2. SEGUNDA OPCION: Buscar por StoreProductID (Misma tienda)
+                    if (!productDoc) {
+                        productDoc = await Product.findOne({
+                            'sources.storeProductId': productId,
+                            'sources.store': StoreName.VEA
+                        });
+                    }
+
+                    // 3. TERCERA OPCION: Si no existe, buscar por slug (fallback)
+                    if (!productDoc) {
+                        productDoc = await Product.findOne({ slug: productSlug });
+                    }
+
+                    // 4. CUARTA OPCION: Si no existe, crear uno nuevo
                     if (!productDoc) {
                         productDoc = new Product({
                             name: productName,
@@ -160,6 +182,7 @@ export class VeaProductScraper extends BaseScraper {
                             category: categoryId,
                             sources: []
                         });
+                        logger.info(`[${this.name}] Creating new product: ${productName}`, { module: 'SCRAPER_NODE' });
                     }
 
                     productDoc.name = productName;
@@ -167,6 +190,8 @@ export class VeaProductScraper extends BaseScraper {
                     productDoc.available = available;
                     productDoc.imageUrl = imageUrl;
                     productDoc.variants = variants;
+                    productDoc.sku = mainItem.itemId;
+                    productDoc.ean = mainEan;
                     if (brandId) productDoc.brand = brandId;
 
                     const sourceIndex = productDoc.sources.findIndex((s: any) => s.store === StoreName.VEA && s.storeProductId === productId);

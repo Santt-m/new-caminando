@@ -1,10 +1,12 @@
 import { adminApi } from './auth.service';
+import { API_BASE_URL } from '@/utils/api.config';
 
 export interface ScraperSettings {
     enabled: boolean;
     maxConcurrency: number;
     retryCount: number;
-    retryDelay: number;
+    retryDelay: number;           // alias frontend de delayBetweenRequests (ms)
+    delayBetweenRequests: number; // nombre real en DB
     productUpdateFrequency: number;
 }
 
@@ -28,14 +30,31 @@ export interface ScraperJob {
     attempts: number;
     timestamp: string;
     duration?: string;
+    progress?: number;
+    failedReason?: string;
 }
 
 export interface ScraperLog {
     timestamp: string;
     level: 'info' | 'warn' | 'error' | 'debug';
     message: string;
+    module?: string;
     details?: any;
 }
+
+/**
+ * Construye la URL raíz del backend (sin /api/v1).
+ * Usada para acceder a archivos estáticos como screenshots.
+ */
+const getBackendRoot = (): string => {
+    const base = API_BASE_URL;
+    // En dev, API_BASE_URL = "http://localhost:4000/api/v1"
+    if (base.startsWith('http')) {
+        return base.replace(/\/api\/v1$/, '');
+    }
+    // En prod con path relativo ("/api/v1") → misma origin
+    return '';
+};
 
 export const AdminScraperService = {
     getStatus: async (): Promise<ScraperStatus[]> => {
@@ -44,10 +63,8 @@ export const AdminScraperService = {
     },
 
     getScreenshotUrl: (scraperId: string): string => {
-        const baseUrl = adminApi.defaults.baseURL || '';
-        // El backend sirve screenshots en /screenshots/ID/latest.jpg
-        const rootUrl = baseUrl.replace('/api/v1/panel', '') || 'http://localhost:3002';
-        return `${rootUrl}/screenshots/${scraperId}/latest.jpg?t=${Date.now()}`;
+        const root = getBackendRoot();
+        return `${root}/screenshots/${scraperId}/latest.jpg?t=${Date.now()}`;
     },
 
     discoverCategories: async (scraperId: string): Promise<any> => {
@@ -65,9 +82,14 @@ export const AdminScraperService = {
         return data;
     },
 
+    updateProducts: async (scraperId: string): Promise<any> => {
+        const { data } = await adminApi.post('/scraper/update-products', { scraperId });
+        return data;
+    },
+
     getQueueStatus: async (): Promise<ScraperJob[]> => {
         const { data } = await adminApi.get('/scraper/queue');
-        return data.data.jobs;
+        return data.data?.jobs ?? [];
     },
 
     getLogs: async (scraperId: string): Promise<ScraperLog[]> => {
@@ -75,8 +97,13 @@ export const AdminScraperService = {
         return data.data;
     },
 
-    updateSettings: async (scraperId: string, settings: ScraperSettings): Promise<any> => {
+    updateSettings: async (scraperId: string, settings: Partial<ScraperSettings>): Promise<any> => {
         const { data } = await adminApi.patch(`/scraper/${scraperId}/settings`, settings);
+        return data;
+    },
+
+    clearScreenshots: async (scraperId: string): Promise<any> => {
+        const { data } = await adminApi.delete(`/scraper/${scraperId}/screenshots`);
         return data;
     },
 

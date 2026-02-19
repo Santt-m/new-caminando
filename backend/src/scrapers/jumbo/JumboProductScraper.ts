@@ -96,17 +96,14 @@ export class JumboProductScraper extends BaseScraper {
         while (hasMore) {
             const rangeTo = from + to;
             // For Cencosud, fq=C:id/path/ is required for subcategories
-            const apiUrl = `/api/catalog_system/pub/products/search?fq=C:${effectiveId}&_from=${from}&_to=${rangeTo}`;
+            const apiUrl = `https://www.jumbo.com.ar/api/catalog_system/pub/products/search?fq=C:${effectiveId}&_from=${from}&_to=${rangeTo}`;
 
-            const products: VTEXProduct[] = await this.page.evaluate(async (url) => {
-                try {
-                    const res = await fetch(url);
-                    if (!res.ok) return [];
-                    return await res.json();
-                } catch (e) {
+            const products: VTEXProduct[] = await this.page.context().request.get(apiUrl)
+                .then(res => res.json())
+                .catch(err => {
+                    logger.error(`[${this.name}] API Fetch error: ${err.message}`, { module: 'SCRAPER_NODE' });
                     return [];
-                }
-            }, apiUrl);
+                });
 
             if (!products || products.length === 0) {
                 hasMore = false;
@@ -174,20 +171,30 @@ export class JumboProductScraper extends BaseScraper {
 
                     // Upsert Product Logic
                     const productSlug = slugify(productName) + '-' + productId;
+                    let productDoc = null;
 
-                    let productDoc = await Product.findOne({
-                        'sources.storeProductId': productId,
-                        'sources.store': StoreName.JUMBO
-                    });
+                    // 1. PRIORIDAD: Buscar por EAN (Vínculo global para comparación de precios)
+                    if (mainItem.ean) {
+                        productDoc = await Product.findByEAN(mainItem.ean);
+                        if (productDoc) {
+                            logger.info(`[${this.name}] Linked product by EAN: ${productName} (${mainItem.ean})`, { module: 'SCRAPER_NODE' });
+                        }
+                    }
 
+                    // 2. SEGUNDA OPCION: Buscar por StoreProductID (Misma tienda)
+                    if (!productDoc) {
+                        productDoc = await Product.findOne({
+                            'sources.storeProductId': productId,
+                            'sources.store': StoreName.JUMBO
+                        });
+                    }
+
+                    // 3. TERCERA OPCION: Si no existe, buscar por slug (fallback)
                     if (!productDoc) {
                         productDoc = await Product.findOne({ slug: productSlug });
                     }
 
-                    if (!productDoc && mainItem.ean) {
-                        productDoc = await Product.findOne({ ean: mainItem.ean });
-                    }
-
+                    // 4. CUARTA OPCION: Si no existe, crear uno nuevo
                     if (!productDoc) {
                         productDoc = new Product({
                             name: productName,
@@ -196,6 +203,7 @@ export class JumboProductScraper extends BaseScraper {
                             category: categoryId,
                             sources: []
                         });
+                        logger.info(`[${this.name}] Creating new product: ${productName}`, { module: 'SCRAPER_NODE' });
                     }
 
                     // Update fields

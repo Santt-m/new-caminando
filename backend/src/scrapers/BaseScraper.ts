@@ -51,14 +51,16 @@ export abstract class BaseScraper implements IScraperNode {
                 quality: 60
             });
             logger.debug(`[${this.name}] Captura guardada: ${screenshotPath}`, { module: 'BROWSER', store: this.storeId });
-        } catch (error) {
-            logger.error(`[${this.name}] Error al tomar captura`, {
+        } catch (error: any) {
+            logger.error(`[${this.name}] Error al tomar captura: ${error.message}`, {
                 module: 'BROWSER',
                 store: this.storeId,
                 error: error instanceof Error ? error.message : 'Error desconocido'
             });
         }
     }
+
+
 
     /**
      * Espera configurada para evitar bloqueos
@@ -73,6 +75,8 @@ export abstract class BaseScraper implements IScraperNode {
      * Wrapper seguro para ejecución
      */
     async execute(data?: any): Promise<any> {
+        let screenshotInterval: NodeJS.Timeout | null = null;
+
         try {
             // Verificar si el scraper está habilitado
             const config = await ScraperConfig.findOne({ store: this.storeId }).lean();
@@ -88,6 +92,18 @@ export abstract class BaseScraper implements IScraperNode {
             // Captura inicial
             await this.takeScreenshot('latest');
 
+            // Iniciar intervalo de capturas (cada 10 segundos)
+            // Esto permite ver el progreso en tiempo real en el panel admin
+            screenshotInterval = setInterval(async () => {
+                try {
+                    if (this.page && !this.page.isClosed()) {
+                        await this.takeScreenshot('latest');
+                    }
+                } catch (err) {
+                    // Silenciar errores de captura periódica para no interrumpir el flujo principal
+                }
+            }, 10000);
+
             const result = await this.process(data);
 
             // Actualizar fecha de última ejecución
@@ -102,15 +118,18 @@ export abstract class BaseScraper implements IScraperNode {
 
             logger.info(`[${this.name}] Ejecución finalizada con éxito`, { module: 'SCRAPER_NODE', store: this.storeId });
             return result;
-        } catch (error) {
-            logger.error(`[${this.name}] Error en ejecución`, {
+        } catch (error: any) {
+            logger.error(`[${this.name}] Error en ejecución: ${error.message}`, {
                 module: 'SCRAPER_NODE',
                 store: this.storeId,
                 error: error instanceof Error ? error.message : 'Error desconocido'
             });
             throw error;
         } finally {
+            if (screenshotInterval) clearInterval(screenshotInterval);
             await this.close();
+            // No limpiamos las capturas al finalizar para que el usuario pueda ver la última acción
+            // this.cleanScreenshots(); 
         }
     }
 

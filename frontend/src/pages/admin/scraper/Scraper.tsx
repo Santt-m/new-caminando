@@ -50,6 +50,8 @@ export const ScraperDashboard = () => {
                     return AdminScraperService.discoverSubcategories(id);
                 case 'scrape-products':
                     return AdminScraperService.scrapeProducts(id);
+                case 'update-products':
+                    return AdminScraperService.updateProducts(id);
                 default:
                     throw new Error('Acción no válida');
             }
@@ -228,27 +230,39 @@ export const ScraperDashboard = () => {
                             </div>
                         </CardContent>
 
-                        <CardFooter className="border-t bg-muted/50 p-4 flex gap-3">
-                            <Button
-                                className="flex-1 gap-2 h-10 shadow-sm"
-                                onClick={() => handleAction(scraper.id, 'scrape-products')}
-                                disabled={mutation.isPending}
-                            >
-                                <Play className="h-3.5 w-3.5" /> Iniciar Full Scrape
-                            </Button>
-                            <Button
-                                variant="outline"
-                                size="icon"
-                                className="h-10 w-10 text-destructive border-destructive/20 hover:bg-destructive/5 hover:text-destructive"
-                                onClick={() => {
-                                    if (confirm(`¿Detener todos los trabajos de ${scraper.name}?`)) {
-                                        stopScraperMutation.mutate(scraper.id);
-                                    }
-                                }}
-                                disabled={stopScraperMutation.isPending}
-                            >
-                                <StopCircle className="h-4 w-4" />
-                            </Button>
+                        <CardFooter className="border-t bg-muted/50 p-4 flex flex-col gap-3">
+                            <div className="flex gap-3 w-full">
+                                <Button
+                                    className="flex-1 gap-2 h-10 shadow-sm"
+                                    onClick={() => handleAction(scraper.id, 'update-products')}
+                                    disabled={mutation.isPending}
+                                >
+                                    <RefreshCcw className="h-3.5 w-3.5" /> Actualizar Productos
+                                </Button>
+                            </div>
+                            <div className="flex gap-3 w-full">
+                                <Button
+                                    variant="outline"
+                                    className="flex-1 gap-2 h-10 border-primary/20 hover:bg-primary/5"
+                                    onClick={() => handleAction(scraper.id, 'scrape-products')}
+                                    disabled={mutation.isPending}
+                                >
+                                    <Play className="h-3.5 w-3.5" /> Iniciar Full Scrape
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-10 w-10 text-destructive border-destructive/20 hover:bg-destructive/5 hover:text-destructive"
+                                    onClick={() => {
+                                        if (confirm(`¿Detener todos los trabajos de ${scraper.name}?`)) {
+                                            stopScraperMutation.mutate(scraper.id);
+                                        }
+                                    }}
+                                    disabled={stopScraperMutation.isPending}
+                                >
+                                    <StopCircle className="h-4 w-4" />
+                                </Button>
+                            </div>
                         </CardFooter>
                     </Card>
                 ))}

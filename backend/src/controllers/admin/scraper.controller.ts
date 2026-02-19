@@ -1,12 +1,15 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { QueueFactory } from '../../config/bullmq/QueueFactory.js';
-import { JOB_PRIORITIES } from '../../config/bullmq/QueueConfig.js';
+import { JOB_PRIORITIES, StoreName } from '../../config/bullmq/QueueConfig.js';
 import { success } from '../../utils/response.js';
 import { Activity } from '../../models/Activity.js';
 import { ScraperConfig } from '../../models/ScraperConfig.js';
-import { StoreName } from '../../config/bullmq/QueueConfig.js';
 import { Product } from '../../models/Product.js';
+import { getScraperWorkers } from '../../workers/scraper.registry.js';
+import { restartStoreWorker, getQueueName, IMPLEMENTED_STORES } from '../../workers/scraper.worker.js';
+import path from 'path';
+import fs from 'fs';
 
 /**
  * Scraper Controller para el Panel de Administración
@@ -17,30 +20,23 @@ export const ScraperController = {
      * Obtener el estado actual de todos los scrapers
      */
     getStatus: asyncHandler(async (_req: Request, res: Response) => {
-        const queue = QueueFactory.getQueue('scraper-tasks');
-        const [_, configs] = await Promise.all([
-            queue.getJobCounts('active', 'waiting', 'delayed', 'failed', 'completed'),
-            ScraperConfig.find().lean()
-        ]);
+        const configs = await ScraperConfig.find().lean();
 
-        const stores = Object.values(StoreName);
-        const scrapers = await Promise.all(stores.map(async (storeId) => {
+        const scrapers = await Promise.all(IMPLEMENTED_STORES.map(async (storeId) => {
             const config = configs.find(c => c.store === storeId);
+            const queue = QueueFactory.getQueue(getQueueName(storeId));
 
-            // Buscar última ejecución en logs
             const lastActivity = await Activity.findOne({
                 module: 'SCRAPER',
                 'details.scraperId': storeId
             }).sort({ createdAt: -1 }).lean();
 
-            // Buscar cantidad de productos
             const productsCount = await Product.countDocuments({
                 'sources.store': storeId
             });
 
-            // Determinar si está "corriendo" (si hay jobs activos en la cola para este store)
             const activeJobs = await queue.getJobs(['active']);
-            const isRunning = activeJobs.some(job => job.data?.store === storeId);
+            const isRunning = activeJobs.length > 0;
 
             return {
                 id: storeId,
@@ -56,7 +52,7 @@ export const ScraperController = {
                     maxConcurrency: config?.maxConcurrency ?? 2,
                     retryCount: config?.retryCount ?? 3,
                     delayBetweenRequests: config?.delayBetweenRequests ?? 1000,
-                    retryDelay: config?.delayBetweenRequests ?? 1000, // Frontend alias
+                    retryDelay: config?.delayBetweenRequests ?? 1000,
                     productUpdateFrequency: config?.productUpdateFrequency ?? 24,
                 }
             };
@@ -103,20 +99,29 @@ export const ScraperController = {
      * Obtener estado de la cola de BullMQ
      */
     getQueue: asyncHandler(async (_req: Request, res: Response) => {
-        const queue = QueueFactory.getQueue('scraper-tasks');
-        const [counts, jobs] = await Promise.all([
-            queue.getJobCounts('active', 'waiting', 'delayed', 'failed', 'completed'),
-            queue.getJobs(['active', 'waiting', 'delayed', 'failed'], 0, 50, true)
-        ]);
+        // Agregar jobs de todas las queues por store
+        const allJobs: any[] = [];
+        const allCounts = { active: 0, waiting: 0, delayed: 0, failed: 0, completed: 0 };
 
-        const formattedJobs = await Promise.all(jobs.map(async job => {
-            let type: any = job.name;
-            if (job.name.startsWith('DISCOVER_')) type = 'discover-categories';
-            else if (job.name === 'CRAWL_CATEGORY') type = 'discover-subcategories';
-            else if (job.name === 'SCRAPE_PRODUCT') type = 'scrape-products';
+        for (const storeId of IMPLEMENTED_STORES) {
+            const queue = QueueFactory.getQueue(getQueueName(storeId));
+            const counts = await queue.getJobCounts('active', 'waiting', 'delayed', 'failed', 'completed');
+            allCounts.active += counts.active;
+            allCounts.waiting += counts.waiting;
+            allCounts.delayed += counts.delayed;
+            allCounts.failed += counts.failed;
+            allCounts.completed += counts.completed;
 
-            const status = await job.getState();
+            const jobs = await queue.getJobs(['active', 'waiting', 'delayed', 'failed'], 0, 50);
+            allJobs.push(...jobs);
+        }
 
+        const formattedJobs = allJobs.map(job => {
+            const status = job.finishedOn ? 'completed'
+                : job.failedReason ? 'failed'
+                    : job.processedOn ? 'active'
+                        : job.delay ? 'delayed' : 'waiting';
+            const type = job.data?.action || job.name?.toLowerCase();
             return {
                 id: job.id,
                 type,
@@ -127,10 +132,10 @@ export const ScraperController = {
                 progress: job.progress,
                 failedReason: job.failedReason
             };
-        }));
+        });
 
         return success(res, {
-            counts,
+            counts: allCounts,
             jobs: formattedJobs
         });
     }),
@@ -142,7 +147,7 @@ export const ScraperController = {
         const { scraperId } = req.body;
         console.log(`[Scraper] Iniciando descubrimiento de categorías para: ${scraperId}`);
 
-        const queue = QueueFactory.getQueue('scraper-tasks');
+        const queue = QueueFactory.getQueue(getQueueName(scraperId));
         await queue.add('DISCOVER_CATEGORIES', {
             store: scraperId,
             action: 'discover-categories'
@@ -171,7 +176,7 @@ export const ScraperController = {
         const { scraperId } = req.body;
         console.log(`[Scraper] Iniciando descubrimiento de subcategorías para: ${scraperId}`);
 
-        const queue = QueueFactory.getQueue('scraper-tasks');
+        const queue = QueueFactory.getQueue(getQueueName(scraperId));
         await queue.add('CRAWL_CATEGORY', {
             store: scraperId,
             action: 'discover-subcategories'
@@ -197,12 +202,40 @@ export const ScraperController = {
      */
     scrapeProducts: asyncHandler(async (req: Request, res: Response) => {
         const { scraperId, categoryId } = req.body;
-        console.log(`[Scraper] Iniciando scraping de productos para: ${scraperId}${categoryId ? ` (Categoría: ${categoryId})` : ''}`);
+        console.log(`[Scraper] Iniciando pipeline completo para: ${scraperId}${categoryId ? ` (Categoría: ${categoryId})` : ''}`);
 
-        const queue = QueueFactory.getQueue('scraper-tasks');
-        await queue.add('SCRAPE_PRODUCT', {
+        const queue = QueueFactory.getQueue(getQueueName(scraperId));
+        await queue.add('FULL_PIPELINE', {
             store: scraperId,
             categoryId,
+            action: 'full-pipeline'
+        }, {
+            priority: JOB_PRIORITIES.SCRAPE_PRODUCT
+        });
+
+        await Activity.create({
+            module: 'SCRAPER',
+            eventType: 'SCRAPING',
+            level: 'info',
+            message: `Iniciado pipeline completo para ${scraperId}`,
+            details: { scraperId, categoryId, action: 'full-pipeline' },
+            ip: req.ip,
+            userAgent: req.get('User-Agent') || 'Unknown'
+        });
+
+        return success(res, null, `Pipeline completo para ${scraperId} iniciado con éxito`);
+    }),
+
+    /**
+     * Actualizar solo productos existentes (incremental)
+     */
+    updateProducts: asyncHandler(async (req: Request, res: Response) => {
+        const { scraperId } = req.body;
+        console.log(`[Scraper] Iniciando actualización de productos para: ${scraperId}`);
+
+        const queue = QueueFactory.getQueue(getQueueName(scraperId));
+        await queue.add('SCRAPE_PRODUCTS', {
+            store: scraperId,
             action: 'scrape-products'
         }, {
             priority: JOB_PRIORITIES.SCRAPE_PRODUCT
@@ -212,26 +245,25 @@ export const ScraperController = {
             module: 'SCRAPER',
             eventType: 'SCRAPING',
             level: 'info',
-            message: `Iniciado scraping de productos para ${scraperId}`,
-            details: { scraperId, categoryId, action: 'scrape-products' },
+            message: `Actualización de productos para ${scraperId} iniciada`,
+            details: { scraperId, action: 'scrape-products' },
             ip: req.ip,
             userAgent: req.get('User-Agent') || 'Unknown'
         });
 
-        return success(res, null, `Tarea de scraping de productos para ${scraperId} iniciada con éxito`);
+        return success(res, null, `Actualización para ${scraperId} encolada`);
     }),
 
     /**
      * Iniciar scraping para todos los supermercados
      */
     scrapeAll: asyncHandler(async (req: Request, res: Response) => {
-        const queue = QueueFactory.getQueue('scraper-tasks');
-        const stores = Object.values(StoreName);
-
-        for (const storeId of stores) {
-            await queue.add('SCRAPE_PRODUCT', {
+        // Solo lanzar jobs para stores con scraper implementado
+        for (const storeId of IMPLEMENTED_STORES) {
+            const queue = QueueFactory.getQueue(getQueueName(storeId));
+            await queue.add('FULL_PIPELINE', {
                 store: storeId,
-                action: 'scrape-products'
+                action: 'full-pipeline'
             }, {
                 priority: JOB_PRIORITIES.SCRAPE_PRODUCT
             });
@@ -241,13 +273,13 @@ export const ScraperController = {
             module: 'SCRAPER',
             eventType: 'SCRAPING',
             level: 'info',
-            message: 'Iniciado scraping general para todos los supermercados',
-            details: { action: 'scrape-all' },
+            message: 'Iniciado pipeline completo para todos los supermercados',
+            details: { action: 'full-pipeline', stores: IMPLEMENTED_STORES },
             ip: req.ip,
             userAgent: req.get('User-Agent') || 'Unknown'
         });
 
-        return success(res, null, 'Scraping general iniciado con éxito para todos los supermercados');
+        return success(res, null, `Pipeline completo iniciado para: ${IMPLEMENTED_STORES.join(', ')}`);
     }),
 
     /**
@@ -307,20 +339,17 @@ export const ScraperController = {
      */
     stopScraper: asyncHandler(async (req: Request, res: Response) => {
         const { id } = req.params;
-        const queue = QueueFactory.getQueue('scraper-tasks');
+        const queue = QueueFactory.getQueue(getQueueName(id));
 
-        // Obtener todos los trabajos pendientes
-        const jobs = await queue.getJobs(['waiting', 'delayed', 'paused']);
-        const jobsToRemove = jobs.filter(job => job.data?.store === id);
-
-        for (const job of jobsToRemove) {
-            await job.remove();
-        }
+        const jobsToRemove = await queue.getJobs(['waiting', 'delayed', 'active']);
+        await Promise.all(jobsToRemove.map(async (job) => {
+            try { await job.remove(); } catch { /* ignorado */ }
+        }));
 
         await Activity.create({
             module: 'SCRAPER',
             eventType: 'SYSTEM',
-            level: 'info',
+            level: 'warn',
             message: `Detenidos todos los trabajos pendientes para ${id}`,
             details: { scraperId: id },
             ip: req.ip,
@@ -380,6 +409,32 @@ export const ScraperController = {
             userAgent: req.get('User-Agent') || 'Unknown'
         });
 
+        // Reiniciar el worker de este store para aplicar la nueva concurrencia
+        try {
+            const workers = getScraperWorkers();
+            await restartStoreWorker(workers, id as StoreName);
+        } catch (workerErr) {
+            // No bloquear la respuesta si el reinicio falla
+            console.warn(`[Scraper] No se pudo reiniciar el worker de ${id}:`, workerErr);
+        }
+
         return success(res, config, `Configuración de ${id} actualizada con éxito`);
+    }),
+
+    /**
+     * Limpiar capturas de pantalla de un scraper
+     */
+    clearScreenshots: asyncHandler(async (req: Request, res: Response) => {
+        const { id } = req.params;
+
+        const screenshotsDir = path.join(process.cwd(), 'public', 'screenshots', id);
+
+        if (fs.existsSync(screenshotsDir)) {
+            fs.readdirSync(screenshotsDir).forEach(file => {
+                fs.unlinkSync(path.join(screenshotsDir, file));
+            });
+        }
+
+        return success(res, null, `Capturas de ${id} eliminadas correctamente`);
     })
 };

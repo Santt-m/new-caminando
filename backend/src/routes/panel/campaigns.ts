@@ -49,9 +49,10 @@ adminCampaignsRouter.post(
             res.json(ok(campaign));
         } catch (err) {
             if (err instanceof z.ZodError) {
+                const zodErr = err as z.ZodError;
                 res.status(400).json({
                     message: 'Datos de campaña inválidos',
-                    errors: err.errors.map(e => ({ path: e.path, message: e.message }))
+                    errors: zodErr.issues.map((e) => ({ path: e.path, message: e.message }))
                 });
                 return;
             }

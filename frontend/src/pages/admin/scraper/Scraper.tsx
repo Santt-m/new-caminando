@@ -12,10 +12,13 @@ import {
     Clock,
     LayoutGrid,
     ChevronRight,
-    Loader2
+    Loader2,
+    Pause,
+    PlayCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
@@ -93,6 +96,22 @@ export const ScraperDashboard = () => {
             queryClient.invalidateQueries({ queryKey: ['admin-scraper-queue'] });
         },
         onError: (err: any) => toast.error(err.message || 'Error al detener el scraper')
+    });
+
+    const togglePauseMutation = useMutation({
+        mutationFn: async ({ id, isPaused }: { id: string, isPaused: boolean }) => {
+            if (isPaused) {
+                return AdminScraperService.resumeScraper(id);
+            } else {
+                return AdminScraperService.pauseScraper(id);
+            }
+        },
+        onSuccess: (_, { id, isPaused }) => {
+            toast.success(isPaused ? `Cola reanudada para ${id}` : `Cola pausada para ${id}`);
+            queryClient.invalidateQueries({ queryKey: ['admin-scrapers'] });
+            queryClient.invalidateQueries({ queryKey: ['admin-scraper-queue'] });
+        },
+        onError: (err: any) => toast.error(err.message || 'Error al cambiar estado de la cola')
     });
 
     const cancelJobMutation = useMutation({
@@ -248,6 +267,19 @@ export const ScraperDashboard = () => {
                                     disabled={mutation.isPending}
                                 >
                                     <Play className="h-3.5 w-3.5" /> Iniciar Full Scrape
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className={cn(
+                                        "h-10 w-10 border-primary/20 hover:bg-primary/5",
+                                        scraper.status === 'paused' && "text-primary border-primary/40 bg-primary/5"
+                                    )}
+                                    onClick={() => togglePauseMutation.mutate({ id: scraper.id, isPaused: scraper.status === 'paused' })}
+                                    disabled={togglePauseMutation.isPending}
+                                    title={scraper.status === 'paused' ? "Reanudar cola" : "Pausar cola"}
+                                >
+                                    {scraper.status === 'paused' ? <PlayCircle className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
                                 </Button>
                                 <Button
                                     variant="outline"

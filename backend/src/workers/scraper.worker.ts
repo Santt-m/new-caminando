@@ -94,6 +94,8 @@ export const IMPLEMENTED_STORES: StoreName[] = [
     StoreName.JUMBO,
     StoreName.VEA,
     StoreName.DISCO,
+    StoreName.DIA,
+    StoreName.LA_ANONIMA,
 ];
 
 export const startScraperWorkers = async (): Promise<Map<string, Worker>> => {

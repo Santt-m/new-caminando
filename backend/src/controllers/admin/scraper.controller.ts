@@ -283,55 +283,62 @@ export const ScraperController = {
     }),
 
     /**
-     * Limpiar completamente la cola de BullMQ
+     * Limpiar completamente todas las colas de BullMQ
      */
     purgeQueue: asyncHandler(async (req: Request, res: Response) => {
-        const queue = QueueFactory.getQueue('scraper-tasks');
+        const results: Record<string, string> = {};
 
-        // 1. Pausar la cola para evitar procesamientos mientras limpiamos
-        await queue.pause();
+        for (const storeId of IMPLEMENTED_STORES) {
+            try {
+                const queue = QueueFactory.getQueue(getQueueName(storeId));
 
-        try {
-            // 2. Obtener todos los trabajos en cualquier estado (límite alto)
-            const jobs = await queue.getJobs(['active', 'waiting', 'delayed', 'paused', 'failed', 'completed'], 0, 2000);
+                // 1. Pausar la cola
+                await queue.pause();
 
-            // 3. Remover cada uno individualmente
-            await Promise.all(jobs.map(async (job) => {
-                try {
-                    // Si está activo, intentar descartarlo para que no se reintente
-                    if (await job.isActive()) {
-                        await job.discard();
+                // 2. Obtener y remover trabajos
+                const jobs = await queue.getJobs(['active', 'waiting', 'delayed', 'paused', 'failed', 'completed'], 0, 2000);
+
+                await Promise.all(jobs.map(async (job) => {
+                    try {
+                        if (await job.isActive()) {
+                            await job.discard();
+                        }
+                        await job.remove();
+                    } catch (err) {
+                        // Ignorar errores individuales
                     }
-                    await job.remove();
-                } catch (err) {
-                    // Ignorar errores de remoción individual
-                }
-            }));
+                }));
 
-            // 4. Limpieza masiva de metadatos de la cola
-            await Promise.all([
-                queue.clean(0, 0, 'wait'),
-                queue.clean(0, 0, 'active'),
-                queue.clean(0, 0, 'delayed'),
-                queue.clean(0, 0, 'failed'),
-                queue.clean(0, 0, 'completed'),
-                queue.drain(true)
-            ]);
-        } finally {
-            // 5. Reanudar la cola
-            await queue.resume();
+                // 3. Limpieza masiva
+                await Promise.all([
+                    queue.clean(0, 0, 'wait'),
+                    queue.clean(0, 0, 'active'),
+                    queue.clean(0, 0, 'delayed'),
+                    queue.clean(0, 0, 'failed'),
+                    queue.clean(0, 0, 'completed'),
+                    queue.drain(true)
+                ]);
+
+                // 4. Reanudar
+                await queue.resume();
+                results[storeId] = 'OK';
+            } catch (err) {
+                console.error(`[Scraper] Error purgando cola ${storeId}:`, err);
+                results[storeId] = 'Error';
+            }
         }
 
         await Activity.create({
             module: 'SCRAPER',
             eventType: 'SYSTEM',
             level: 'warn',
-            message: 'Cola de scrapers vaciada manualmente',
+            message: 'Todas las colas de scrapers vaciadas manualmente',
+            details: { results },
             ip: req.ip,
             userAgent: req.get('User-Agent') || 'Unknown'
         });
 
-        return success(res, null, 'Cola de trabajos limpiada correctamente');
+        return success(res, results, 'Todas las colas de trabajos han sido limpiadas');
     }),
 
     /**
@@ -360,20 +367,72 @@ export const ScraperController = {
     }),
 
     /**
-     * Cancelar un trabajo específico
+     * Cancelar un trabajo específico buscando en todas las colas
      */
     cancelJob: asyncHandler(async (req: Request, res: Response) => {
         const { jobId } = req.params;
-        const queue = QueueFactory.getQueue('scraper-tasks');
+        let jobFound = false;
 
-        const job = await queue.getJob(jobId);
-        if (!job) {
-            return success(res, null, 'Trabajo no encontrado o ya procesado');
+        for (const storeId of IMPLEMENTED_STORES) {
+            const queue = QueueFactory.getQueue(getQueueName(storeId));
+            const job = await queue.getJob(jobId);
+
+            if (job) {
+                await job.remove();
+                jobFound = true;
+                break;
+            }
         }
 
-        await job.remove();
+        if (!jobFound) {
+            return success(res, null, 'Trabajo no encontrado en ninguna cola activa');
+        }
 
         return success(res, null, `Trabajo #${jobId} cancelado con éxito`);
+    }),
+
+    /**
+     * Pausar la cola de un supermercado
+     */
+    pauseScraper: asyncHandler(async (req: Request, res: Response) => {
+        const { id } = req.params;
+        const queue = QueueFactory.getQueue(getQueueName(id));
+
+        await queue.pause();
+
+        await Activity.create({
+            module: 'SCRAPER',
+            eventType: 'SYSTEM',
+            level: 'info',
+            message: `Cola pausada para ${id}`,
+            details: { scraperId: id },
+            ip: req.ip,
+            userAgent: req.get('User-Agent') || 'Unknown'
+        });
+
+        return success(res, null, `Cola de ${id} pausada`);
+    }),
+
+    /**
+     * Reanudar la cola de un supermercado
+     */
+    resumeScraper: asyncHandler(async (req: Request, res: Response) => {
+        const { id } = req.params;
+        const queue = QueueFactory.getQueue(getQueueName(id));
+
+        await queue.resume();
+
+        await Activity.create({
+            module: 'SCRAPER',
+            eventType: 'SYSTEM',
+            level: 'info',
+            message: `Cola reanudada para ${id}`,
+            details: { scraperId: id },
+            ip: req.ip,
+            userAgent: req.get('User-Agent') || 'Unknown'
+        });
+
+        return success(res, null, `Cola de ${id} reanudada`);
     }),
 
     /**

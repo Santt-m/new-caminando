@@ -122,6 +122,16 @@ export const AdminScraperService = {
         return data;
     },
 
+    pauseScraper: async (scraperId: string): Promise<any> => {
+        const { data } = await adminApi.post(`/scraper/${scraperId}/pause`);
+        return data;
+    },
+
+    resumeScraper: async (scraperId: string): Promise<any> => {
+        const { data } = await adminApi.post(`/scraper/${scraperId}/resume`);
+        return data;
+    },
+
     cancelJob: async (jobId: string): Promise<any> => {
         const { data } = await adminApi.delete(`/scraper/jobs/${jobId}`);
         return data;

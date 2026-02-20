@@ -65,7 +65,7 @@ adminCategoriesRouter.get(
     '/:id/store-categories-needing-mapping',
     asyncHandler(async (req, res) => {
         const category = await Category.findById(req.params.id);
-        
+
         if (!category) {
             return res.status(404).json({ message: 'Categoría no encontrada' });
         }
@@ -86,7 +86,7 @@ adminCategoriesRouter.get(
             const categoryPath = primarySource?.categoryPath || [];
             const storeName = primarySource?.store || 'unknown';
             const storeCategory = categoryPath.length > 0 ? categoryPath[categoryPath.length - 1] : 'unknown';
-            
+
             return {
                 id: `${storeName}-${storeCategory}`,
                 name: storeCategory,
@@ -129,7 +129,7 @@ adminCategoriesRouter.get(
     '/:id/mappings',
     asyncHandler(async (req, res) => {
         const category = await Category.findById(req.params.id);
-        
+
         if (!category) {
             return res.status(404).json({ message: 'Categoría no encontrada' });
         }
@@ -143,10 +143,10 @@ adminCategoriesRouter.get(
             confidence: number;
             mappedAt: Date;
         }> = [];
-        
+
         if (category.storeMappings) {
             Object.entries(category.storeMappings).forEach(([storeName, storeMappings]) => {
-                storeMappings.forEach(mapping => {
+                storeMappings.forEach((mapping: any) => {
                     const typedMapping = mapping as {
                         storeCategoryId: string;
                         storeCategoryName: string;
@@ -254,11 +254,11 @@ adminCategoriesRouter.post(
     '/:id/mappings',
     asyncHandler(async (req, res) => {
         const { storeName, storeCategoryId, storeCategoryName, storeCategoryPath, confidence } = req.body;
-        
+
         if (!storeName || !storeCategoryId || !storeCategoryName) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Faltan campos requeridos: storeName, storeCategoryId, storeCategoryName' 
+            return res.status(400).json({
+                success: false,
+                message: 'Faltan campos requeridos: storeName, storeCategoryId, storeCategoryName'
             });
         }
 
@@ -279,13 +279,13 @@ adminCategoriesRouter.post(
 
         // Verificar si ya existe el mapeo
         const existingMapping = category.storeMappings[storeName].find(
-            mapping => (mapping as { storeCategoryId: string }).storeCategoryId === storeCategoryId
+            (mapping: any) => (mapping as { storeCategoryId: string }).storeCategoryId === storeCategoryId
         );
 
         if (existingMapping) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'El mapeo ya existe para esta categoría y supermercado' 
+            return res.status(400).json({
+                success: false,
+                message: 'El mapeo ya existe para esta categoría y supermercado'
             });
         }
 
@@ -301,10 +301,10 @@ adminCategoriesRouter.post(
         category.storeMappings[storeName].push(newMapping);
         await category.save();
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             message: 'Mapeo creado exitosamente',
-            data: newMapping 
+            data: newMapping
         });
     })
 );
@@ -317,7 +317,7 @@ adminCategoriesRouter.delete(
     '/:id/mappings/:storeName/:storeCategoryId',
     asyncHandler(async (req, res) => {
         const { storeName, storeCategoryId } = req.params;
-        
+
         const category = await Category.findById(req.params.id);
         if (!category) {
             return res.status(404).json({ message: 'Categoría no encontrada' });
@@ -330,7 +330,7 @@ adminCategoriesRouter.delete(
         // Filtrar el mapeo a eliminar
         const initialLength = category.storeMappings[storeName].length;
         category.storeMappings[storeName] = category.storeMappings[storeName].filter(
-            mapping => (mapping as { storeCategoryId: string }).storeCategoryId !== storeCategoryId
+            (mapping: any) => (mapping as { storeCategoryId: string }).storeCategoryId !== storeCategoryId
         );
 
         if (category.storeMappings[storeName].length === initialLength) {
@@ -339,9 +339,9 @@ adminCategoriesRouter.delete(
 
         await category.save();
 
-        res.json({ 
-            success: true, 
-            message: 'Mapeo eliminado exitosamente' 
+        res.json({
+            success: true,
+            message: 'Mapeo eliminado exitosamente'
         });
     })
 );
@@ -354,11 +354,11 @@ adminCategoriesRouter.post(
     '/auto-map',
     asyncHandler(async (req, res) => {
         const { storeName, categories } = req.body;
-        
+
         if (!storeName || !Array.isArray(categories) || categories.length === 0) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Faltan campos requeridos: storeName, categories array' 
+            return res.status(400).json({
+                success: false,
+                message: 'Faltan campos requeridos: storeName, categories array'
             });
         }
 
@@ -366,7 +366,7 @@ adminCategoriesRouter.post(
         await mapper.loadMasterCategories();
 
         const results = [];
-        
+
         for (const category of categories) {
             try {
                 const mappingResult = await mapper.mapCategory(
@@ -398,8 +398,8 @@ adminCategoriesRouter.post(
             }
         }
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             data: {
                 total: results.length,
                 mapped: results.filter(r => r.mappingResult.confidence > 0).length,

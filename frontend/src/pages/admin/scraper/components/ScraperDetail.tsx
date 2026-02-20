@@ -20,7 +20,9 @@ import {
     Save,
     Loader2,
     Play,
-    StopCircle
+    StopCircle,
+    Pause,
+    PlayCircle
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -163,6 +165,22 @@ export const ScraperDetail = ({ scraper }: ScraperDetailProps) => {
                         >
                             <Play className="h-4 w-4" />
                             {scraper.status === 'running' ? 'En ejecución...' : 'Iniciar Scraping'}
+                        </Button>
+                        <Button
+                            variant="outline"
+                            className={cn(
+                                "h-10 w-10 p-0 border-primary/20 hover:bg-primary/5",
+                                scraper.status === 'paused' && "text-primary border-primary/40 bg-primary/5"
+                            )}
+                            onClick={() => {
+                                const action = scraper.status === 'paused' ? AdminScraperService.resumeScraper(scraper.id) : AdminScraperService.pauseScraper(scraper.id);
+                                action.then(() => {
+                                    toast.success(scraper.status === 'paused' ? 'Cola reanudada' : 'Cola pausada');
+                                    queryClient.invalidateQueries({ queryKey: ['admin-scrapers'] });
+                                });
+                            }}
+                        >
+                            {scraper.status === 'paused' ? <PlayCircle className="h-5 w-5" /> : <Pause className="h-5 w-5" />}
                         </Button>
                         <Button
                             variant="outline"

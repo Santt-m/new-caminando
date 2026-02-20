@@ -11,6 +11,10 @@ import { VeaHomeScraper } from '../scrapers/vea/VeaHomeScraper.js';
 import { VeaProductScraper } from '../scrapers/vea/VeaProductScraper.js';
 import { DiscoHomeScraper } from '../scrapers/disco/DiscoHomeScraper.js';
 import { DiscoProductScraper } from '../scrapers/disco/DiscoProductScraper.js';
+import { DiaHomeScraper } from '../scrapers/dia/DiaHomeScraper.js';
+import { DiaProductScraper } from '../scrapers/dia/DiaProductScraper.js';
+import { LaAnonimaHomeScraper } from '../scrapers/la_anonima/LaAnonimaHomeScraper.js';
+import { LaAnonimaProductScraper } from '../scrapers/la_anonima/LaAnonimaProductScraper.js';
 
 /**
  * Registry de scrapers: mapea (store, action) → instancia de scraper.
@@ -32,6 +36,14 @@ const SCRAPER_REGISTRY: Record<string, Record<string, () => BaseScraper>> = {
     disco: {
         'discover-categories': () => new DiscoHomeScraper(),
         'scrape-products': () => new DiscoProductScraper(),
+    },
+    dia: {
+        'discover-categories': () => new DiaHomeScraper(),
+        'scrape-products': () => new DiaProductScraper(),
+    },
+    la_anonima: {
+        'discover-categories': () => new LaAnonimaHomeScraper(),
+        'scrape-products': () => new LaAnonimaProductScraper(),
     },
 };
 

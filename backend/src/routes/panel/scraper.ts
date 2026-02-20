@@ -25,6 +25,8 @@ adminScraperRouter.post('/scrape-all', ScraperController.scrapeAll);
 adminScraperRouter.post('/update-products', ScraperController.updateProducts);
 adminScraperRouter.post('/purge-queue', ScraperController.purgeQueue);
 adminScraperRouter.post('/:id/stop', ScraperController.stopScraper);
+adminScraperRouter.post('/:id/pause', ScraperController.pauseScraper);
+adminScraperRouter.post('/:id/resume', ScraperController.resumeScraper);
 adminScraperRouter.delete('/jobs/:jobId', ScraperController.cancelJob);
 adminScraperRouter.patch('/:id/settings', ScraperController.updateSettings);
 adminScraperRouter.delete('/:id/screenshots', ScraperController.clearScreenshots);
